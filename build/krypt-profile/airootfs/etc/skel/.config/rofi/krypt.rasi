@@ -1,0 +1,189 @@
+/* krypt.rasi — Krypt OS Rofi Dark-Theme
+ * Catppuccin Mocha + Krypt-Violett
+ * Verwendung: rofi -theme ~/.config/rofi/krypt.rasi
+ */
+
+* {
+    /* ── Krypt Palette ─────────────────────────────────────────────────── */
+    krypt-violet:   #9d4edd;
+    krypt-dark:     #7b2fbe;
+    krypt-light:    #c77dff;
+    krypt-glow:     #e0aaff;
+
+    crust:          #11111b;
+    mantle:         #181825;
+    base:           #1e1e2e;
+    surface0:       #313244;
+    surface1:       #45475a;
+    surface2:       #585b70;
+    overlay0:       #6c7086;
+    overlay1:       #7f849c;
+    text:           #cdd6f4;
+    subtext1:       #bac2de;
+    subtext0:       #a6adc8;
+    blue:           #89b4fa;
+    green:          #a6e3a1;
+    red:            #f38ba8;
+    yellow:         #f9e2af;
+    peach:          #fab387;
+
+    /* ── Semantisch ────────────────────────────────────────────────────── */
+    bg:             @base;
+    bg-alt:         @mantle;
+    bg-selected:    @surface0;
+    border-col:     @krypt-violet;
+    text-col:       @text;
+    text-alt:       @subtext0;
+    accent:         @krypt-violet;
+    accent-light:   @krypt-light;
+    urgent:         @red;
+
+    /* ── Fonts ─────────────────────────────────────────────────────────── */
+    font:           "JetBrainsMono Nerd Font 13";
+
+    /* ── Reset ─────────────────────────────────────────────────────────── */
+    background-color: transparent;
+    text-color:       @text-col;
+    border:           0;
+    margin:           0;
+    padding:          0;
+    spacing:          0;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   WINDOW
+   ──────────────────────────────────────────────────────────────────────── */
+window {
+    width:            540px;
+    background-color: @bg;
+    border:           2px solid @border-col;
+    border-radius:    14px;
+    padding:          12px;
+    opacity:          0.96;
+    /* Hyprland blur via layerrule übernimmt den Rest */
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   MAINBOX
+   ──────────────────────────────────────────────────────────────────────── */
+mainbox {
+    spacing:    10px;
+    padding:    4px;
+    children:   [ inputbar, message, listview ];
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   INPUTBAR (Suchfeld)
+   ──────────────────────────────────────────────────────────────────────── */
+inputbar {
+    background-color: @bg-alt;
+    border:           1px solid @surface1;
+    border-radius:    10px;
+    padding:          10px 14px;
+    spacing:          8px;
+    children:         [ prompt, entry ];
+}
+
+inputbar:focus-within {
+    border-color: @accent;
+}
+
+prompt {
+    text-color:  @accent;
+    font:        "JetBrainsMono Nerd Font Bold 13";
+}
+
+entry {
+    placeholder:            "Search VMs...";
+    placeholder-color:      @overlay0;
+    text-color:             @text-col;
+    cursor:                 text;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   LISTVIEW
+   ──────────────────────────────────────────────────────────────────────── */
+listview {
+    background-color: transparent;
+    columns:          1;
+    lines:            8;
+    spacing:          4px;
+    scrollbar:        false;
+    fixed-height:     false;
+    border:           0;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   ELEMENT (einzelner Eintrag)
+   ──────────────────────────────────────────────────────────────────────── */
+element {
+    background-color: transparent;
+    border-radius:    8px;
+    padding:          8px 12px;
+    spacing:          8px;
+    children:         [ element-icon, element-text ];
+    cursor:           pointer;
+    transition:       background-color 0.1s ease;
+}
+
+element.normal.normal {
+    background-color: transparent;
+    text-color:       @text-col;
+}
+
+element.normal.urgent {
+    background-color: rgba(243, 139, 168, 0.15);
+    text-color:       @urgent;
+}
+
+element.selected.normal {
+    background-color: rgba(157, 78, 221, 0.20);
+    text-color:       @accent-light;
+    border:           1px solid rgba(157, 78, 221, 0.40);
+}
+
+element.selected.urgent {
+    background-color: rgba(243, 139, 168, 0.25);
+    text-color:       @urgent;
+}
+
+element.alternate.normal {
+    background-color: rgba(49, 50, 68, 0.30);
+}
+
+element-icon {
+    size:             22px;
+    vertical-align:   0.5;
+}
+
+element-text {
+    vertical-align:   0.5;
+    text-color:       inherit;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   SCROLLBAR
+   ──────────────────────────────────────────────────────────────────────── */
+scrollbar {
+    width:            4px;
+    border:           0;
+    handle-width:     4px;
+    handle-color:     @accent;
+    background-color: @surface0;
+    border-radius:    4px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   MESSAGE (Fehler / Hinweise)
+   ──────────────────────────────────────────────────────────────────────── */
+message {
+    background-color: rgba(243, 139, 168, 0.12);
+    border:           1px solid rgba(243, 139, 168, 0.40);
+    border-radius:    8px;
+    padding:          6px 12px;
+}
+
+textbox {
+    text-color: @red;
+    font:       "JetBrainsMono Nerd Font 12";
+}

@@ -1,0 +1,112 @@
+# Krypt OS — GRUB Dark Theme
+# Installieren: cp -r dotfiles/grub/krypt-grub /boot/grub/themes/
+#               grub-theme = /boot/grub/themes/krypt-grub/theme.txt
+#               (in /etc/default/grub: GRUB_THEME=/boot/grub/themes/krypt-grub/theme.txt)
+#               grub-mkconfig -o /boot/grub/grub.cfg
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GLOBAL
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Kein Hintergrundbild — solid Catppuccin Mocha Crust
+desktop-color: "#11111b"
+title-text:    ""
+title-color:   "#9d4edd"
+title-font:    "JetBrainsMono Nerd Font Regular 14"
+
+# Terminal-Stil (falls GRUB-Shell geöffnet wird)
+terminal-box:        "terminal_c*.png"
+terminal-font:       "JetBrainsMono Nerd Font Regular 14"
+terminal-border:     0
+
+# ─────────────────────────────────────────────────────────────────────────────
+# KRYPT ASCII LOGO (oben zentriert)
+# ─────────────────────────────────────────────────────────────────────────────
++ label {
+    top    = 8%
+    left   = 50%-200
+    width  = 400
+    align  = "center"
+    text   = "K R Y P T  O S"
+    color  = "#9d4edd"
+    font   = "JetBrainsMono Nerd Font Bold 28"
+}
+
++ label {
+    top    = 14%
+    left   = 50%-260
+    width  = 520
+    align  = "center"
+    text   = "Secure  ·  Isolated  ·  Lightweight"
+    color  = "#6c7086"
+    font   = "JetBrainsMono Nerd Font Regular 13"
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOOT-MENÜ
+# ─────────────────────────────────────────────────────────────────────────────
++ boot_menu {
+    top    = 25%
+    left   = 50%-220
+    width  = 440
+    height = 50%
+
+    # Normaler Eintrag
+    item_color       = "#bac2de"
+    item_font        = "JetBrainsMono Nerd Font Regular 14"
+    item_height      = 38
+    item_padding     = 12
+    item_spacing     = 4
+    item_icon_space  = 20
+
+    # Ausgewählter Eintrag
+    selected_item_color      = "#cdd6f4"
+    selected_item_font       = "JetBrainsMono Nerd Font Bold 14"
+    selected_background      = "#313244"
+    selected_item_pixmap_style = "select_*.png"
+
+    # Kein Scrollbalken nötig (wenige Einträge)
+    scrollbar         = false
+    icon_width        = 0
+    icon_height       = 0
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TIMER / COUNTDOWN (auto-boot)
+# ─────────────────────────────────────────────────────────────────────────────
++ label {
+    top    = 79%
+    left   = 50%-160
+    width  = 320
+    align  = "center"
+    id     = "__timeout__"
+    text   = "Auto-Boot in %d Sekunden"
+    color  = "#45475a"
+    font   = "JetBrainsMono Nerd Font Regular 11"
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# HILFE-LEISTE (unten)
+# ─────────────────────────────────────────────────────────────────────────────
++ label {
+    top    = 92%
+    left   = 50%-300
+    width  = 600
+    align  = "center"
+    text   = "↑↓ Wählen   ENTER Starten   e Bearbeiten   c GRUB-Shell"
+    color  = "#585b70"
+    font   = "JetBrainsMono Nerd Font Regular 11"
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TRENNLINIE (unter Menü)
+# ─────────────────────────────────────────────────────────────────────────────
++ label {
+    top    = 78%
+    left   = 50%-260
+    width  = 520
+    align  = "center"
+    text   = "────────────────────────────────────────────"
+    color  = "#313244"
+    font   = "JetBrainsMono Nerd Font Regular 10"
+}

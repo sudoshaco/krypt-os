@@ -1,0 +1,6 @@
+
+# Krypt OS GRUB-Theme
+GRUB_THEME="/boot/grub/themes/krypt-grub/theme.txt"
+GRUB_TIMEOUT=5
+GRUB_TIMEOUT_STYLE=menu
+GRUB_DISTRIBUTOR="Krypt OS"

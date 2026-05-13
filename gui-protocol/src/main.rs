@@ -1,0 +1,166 @@
+// krypt-gui-protocol — Wayland-nativer GUI-Daemon für Krypt OS
+//
+// Läuft in sys-gui. Empfängt Pixel-Daten von AppVMs via Xen Shared Memory
+// und erstellt Wayland-Surfaces (xdg_toplevel) im Hyprland-Compositor.
+//
+// Thread-Modell:
+//   Main-Thread (tokio): SIGTERM/SIGINT warten, Shutdown-Flag setzen.
+//   Wayland-Thread (blocking std::thread): besitzt Compositor + EventQueue (!Send),
+//     führt den 60fps-Frame-Loop aus.
+//
+// Phase 10: wl_shm Pixel-Pipeline, XenInterface::poll_dirty_regions() Stub.
+// Phase 11: echte Xen-Guests via accept_guest(), wl_frame_callback Pacing.
+
+mod input;
+mod wayland;
+mod xen;
+
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+use std::time::{Duration, Instant};
+use std::error::Error;
+use tracing::error;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            std::env::var("KRYPT_LOG")
+                .unwrap_or_else(|_| "krypt_gui=info".into()),
+        )
+        .init();
+
+    tracing::info!("krypt-gui-protocol starting");
+
+    let shutdown = Arc::new(AtomicBool::new(false));
+    let shutdown_wl = Arc::clone(&shutdown);
+
+    // Wayland-Thread — besitzt Compositor (EventQueue ist !Send)
+    let wayland_thread = std::thread::spawn(move || {
+        if let Err(e) = wayland_loop(shutdown_wl) {
+            error!("wayland loop: {e}");
+        }
+    });
+
+    // Auf SIGTERM oder Ctrl+C warten
+    let mut sigterm = tokio::signal::unix::signal(
+        tokio::signal::unix::SignalKind::terminate(),
+    )?;
+    tokio::select! {
+        _ = sigterm.recv()          => tracing::info!("SIGTERM — shutting down"),
+        _ = tokio::signal::ctrl_c() => tracing::info!("SIGINT — shutting down"),
+    }
+
+    shutdown.store(true, Ordering::Release);
+    wayland_thread.join().ok();
+
+    tracing::info!("krypt-gui-protocol stopped");
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Wayland-Thread
+// ---------------------------------------------------------------------------
+
+/// Stub-Liste der AppVMs die beim Start simuliert werden.
+///
+/// Phase 11: durch `xen.accept_guest()` ersetzen.
+const STUB_VMS: &[(&str, wayland::TrustLevel, u32, u32, &str)] = &[
+    ("work",    wayland::TrustLevel::Green,  1280, 800, "Terminal"),
+    ("browser", wayland::TrustLevel::Yellow, 1280, 800, "Firefox"),
+    ("vault",   wayland::TrustLevel::Black,  960,  600, "KeePassXC"),
+];
+
+fn wayland_loop(shutdown: Arc<AtomicBool>) -> Result<(), Box<dyn Error>> {
+    let xen = xen::XenInterface::open()?;
+
+    let mut compositor = wayland::Compositor::connect()?;
+    tracing::info!("wayland: compositor connected");
+
+    // Surfaces für simulierte AppVMs erstellen
+    let mut surfaces: Vec<(xen::DomId, wayland::AppVmSurface)> = Vec::new();
+    for (i, (name, trust, w, h, title)) in STUB_VMS.iter().enumerate() {
+        let cfg = wayland::SurfaceConfig {
+            vm_name: name.to_string(),
+            trust:   *trust,
+            width:   *w,
+            height:  *h,
+            title:   title.to_string(),
+        };
+        match compositor.create_surface(cfg) {
+            Ok(surf)  => {
+                tracing::info!("wayland: surface '{}' created", name);
+                surfaces.push((i as xen::DomId, surf));
+            }
+            Err(e) => tracing::warn!("wayland: create_surface '{}': {e}", name),
+        }
+    }
+
+    tracing::info!("wayland: {} surface(s) active — entering frame loop", surfaces.len());
+
+    while !shutdown.load(Ordering::Acquire) {
+        let frame_start = Instant::now();
+
+        // Pixel-Updates für jede Surface
+        for (domid, surface) in &mut surfaces {
+            if !surface.is_configured() { continue; }
+
+            let dirty = xen.poll_dirty_regions(*domid);
+            if dirty.is_empty() { continue; }
+
+            // Phase 10: trust-farbige Testfläche rendern
+            // Phase 11: xen.read_pixels(*domid, &dirty)
+            let pixels = trust_colored_frame(
+                surface.config.width,
+                surface.config.height,
+                &surface.config.trust,
+            );
+            if let Err(e) = surface.update_pixels(&pixels) {
+                tracing::warn!("update_pixels '{}': {e}", surface.config.vm_name);
+            }
+        }
+
+        // Flush + Wayland-Events verarbeiten (XdgWmBase-Ping, configure, release)
+        compositor.dispatch()?;
+
+        // Frame-Pacing: 16ms Budget — verbleibende Zeit schlafen
+        let elapsed = frame_start.elapsed();
+        let budget  = Duration::from_millis(16);
+        if elapsed < budget {
+            std::thread::sleep(budget - elapsed);
+        } else {
+            tracing::trace!("frame overrun: {}ms", elapsed.as_millis());
+        }
+    }
+
+    tracing::info!("wayland loop: clean exit");
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Test-Pixel-Generator (Phase 10 stub)
+// ---------------------------------------------------------------------------
+
+/// Erzeugt einen einfarbigen ARGB8888-LE-Buffer in der Trust-Level-Farbe.
+///
+/// Speicher-Layout: je Pixel [B, G, R, A] (little-endian 0xAARRGGBB).
+/// Phase 11: ersetzen durch echte Xen Grant-Memory-Daten.
+fn trust_colored_frame(width: u32, height: u32, trust: &wayland::TrustLevel) -> Vec<u8> {
+    // Catppuccin Mocha Farben (RGB)
+    let (r, g, b): (u8, u8, u8) = match trust {
+        wayland::TrustLevel::Red    => (0xf3, 0x8b, 0xa8),  // MOCHA_RED   #f38ba8
+        wayland::TrustLevel::Orange => (0xfe, 0xbd, 0x96),  // MOCHA_PEACH #febd96
+        wayland::TrustLevel::Yellow => (0xf9, 0xe2, 0xaf),  // MOCHA_YELLOW
+        wayland::TrustLevel::Green  => (0xa6, 0xe3, 0xa1),  // MOCHA_GREEN
+        wayland::TrustLevel::Black  => (0x11, 0x11, 0x1b),  // CRUST
+    };
+
+    let count = (width * height) as usize;
+    let mut buf = Vec::with_capacity(count * 4);
+    for _ in 0..count {
+        buf.extend_from_slice(&[b, g, r, 0xff]);  // BGRA → ARGB8888 LE
+    }
+    buf
+}

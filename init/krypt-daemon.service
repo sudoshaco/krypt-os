@@ -1,0 +1,48 @@
+[Unit]
+Description=Krypt VM Management Daemon
+Documentation=https://github.com/sudoshaco/krypt-os
+# Xen-Store muss erreichbar sein bevor der Daemon VM-Operationen ausführt.
+# Falls xenstore.service nicht existiert (Test-Umgebung) greift After= nicht.
+After=local-fs.target xenstore.service
+Wants=xenstore.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+
+ExecStart=/usr/bin/krypt-daemon
+ExecReload=/bin/kill -HUP $MAINPID
+
+Restart=on-failure
+RestartSec=5s
+# Nie neu starten wenn absichtlich gestoppt (SIGTERM/SIGINT)
+RestartPreventExitStatus=0
+
+# /run/krypt/ anlegen (IPC-Socket, boot-stick-uuid)
+RuntimeDirectory=krypt
+RuntimeDirectoryMode=0700
+
+# /etc/krypt/ für daemon.toml und panic.toml
+ConfigurationDirectory=krypt
+ConfigurationDirectoryMode=0700
+
+# Sicherheitshärtung — soweit mit xl-Calls kompatibel
+# NoNewPrivileges=yes ist nicht möglich: xl nutzt setuid-Bits
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/run/krypt /etc/krypt /run/krypt
+PrivateTmp=yes
+PrivateDevices=no  # xl braucht /dev/xen
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=no  # xl braucht SUID
+LockPersonality=yes
+RestrictRealtime=yes
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=krypt-daemon
+
+[Install]
+WantedBy=multi-user.target

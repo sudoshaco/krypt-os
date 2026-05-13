@@ -1,0 +1,61 @@
+#!/bin/bash
+# /etc/initcpio/install/krypt — mkinitcpio Build-Script
+#
+# Wird von mkinitcpio beim Bau der initramfs ausgeführt.
+# Fügt alle benötigten Binaries, Libraries und den Hook-Script
+# in das initramfs-Image ein.
+#
+# Platzierung: /etc/initcpio/install/krypt
+# Hook-Script: /etc/initcpio/hooks/krypt
+#
+# mkinitcpio.conf Reihenfolge:
+#   HOOKS=(base udev krypt encrypt filesystems fsck)
+#   ^^^^^^^^^^^^^^^^^
+#   udev muss vor krypt stehen (udevd muss laufen damit by-id/ Symlinks entstehen)
+
+build() {
+    # cryptsetup — öffnet das LUKS2-Volume mit dem Stick-Key
+    add_binary cryptsetup
+
+    # dd — liest 64 Byte Schlüsselmaterial vom Stick (offset 512)
+    add_binary dd
+
+    # udevadm — triggert Block-Device-Erkennung und wartet auf settle
+    add_binary udevadm
+
+    # blkid — optional für Debugging (UUID-Lookup)
+    add_binary blkid
+
+    # Kernel-Module für LUKS2 / dm-crypt
+    add_module dm-crypt
+    add_module dm-mod
+    add_module aes
+    add_module sha256
+
+    # Der Runtime-Hook (hooks/krypt) wird automatisch via add_runscript eingebunden
+    add_runscript
+}
+
+help() {
+    cat <<'EOF'
+krypt — USB-Stick-basierter LUKS2-Auth-Hook
+
+Erfordert einen Auth-Stick, der mit `krypt-stick setup` vorbereitet wurde.
+Der Stick muss 64 Byte Schlüsselmaterial an Byte-Offset 512 (Sektor 1) haben.
+
+Kernel-Cmdline-Parameter:
+  krypt_luks_uuid=<UUID>   UUID des LUKS2-Root-Devices  (Pflicht)
+  krypt_luks_name=<name>   dm-crypt Device-Name         (default: krypt-root)
+
+Beispiel GRUB:
+  GRUB_CMDLINE_LINUX="krypt_luks_uuid=a1b2c3d4-... quiet"
+
+Beispiel systemd-boot (loader entry):
+  options krypt_luks_uuid=a1b2c3d4-... root=/dev/mapper/krypt-root rw quiet
+
+HOOKS-Reihenfolge in /etc/mkinitcpio.conf:
+  HOOKS=(base udev krypt encrypt filesystems fsck)
+
+Ohne Stick bleibt das System im Warte-Loop. Kein Passwort-Fallback.
+EOF
+}

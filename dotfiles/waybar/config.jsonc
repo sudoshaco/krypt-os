@@ -1,0 +1,141 @@
+// ~/.config/waybar/config.jsonc — Krypt OS Waybar
+// Zwei Module: oben (Workspaces, Window-Titel) und unten (Status)
+// krypt-vms.py kommuniziert via /run/krypt/ipc.sock mit krypt-daemon
+
+{
+    "layer": "top",
+    "position": "top",
+    "height": 34,
+    "spacing": 0,
+    "margin-top": 6,
+    "margin-left": 8,
+    "margin-right": 8,
+    "exclusive": true,
+
+    "modules-left": [
+        "hyprland/workspaces",
+        "hyprland/window"
+    ],
+
+    "modules-center": [
+        "custom/krypt-vms"
+    ],
+
+    "modules-right": [
+        "cpu",
+        "memory",
+        "network",
+        "pulseaudio",
+        "battery",
+        "clock",
+        "tray"
+    ],
+
+    // ─────────────────────────────────────────────────────────────────────
+    // LEFT
+    // ─────────────────────────────────────────────────────────────────────
+
+    "hyprland/workspaces": {
+        "format": "{icon}",
+        "format-icons": {
+            "1":  "󰈹",   // browser / red
+            "2":  "󰙴",   // yellow
+            "3":  "󰙵",   // green / work
+            "4":  "󱃔",   // orange / hacking
+            "9":  "󰌾",   // vault (Schloss-Icon)
+            "10": "󰒋",   // system
+            "urgent": "",
+            "active": "",
+            "default": ""
+        },
+        "persistent-workspaces": {
+            "1": [], "2": [], "3": [], "9": []
+        },
+        "on-click": "activate",
+        "sort-by-number": true
+    },
+
+    "hyprland/window": {
+        "format": "{}",
+        "max-length": 50,
+        "separate-outputs": true,
+        "rewrite": {
+            // Trust-Tag aus Titel extrahieren für sauberere Anzeige
+            "\\[(.+)\\] (.+): (.+)": "[$1] $3"
+        }
+    },
+
+    // ─────────────────────────────────────────────────────────────────────
+    // CENTER — Krypt VM Status
+    // ─────────────────────────────────────────────────────────────────────
+
+    "custom/krypt-vms": {
+        "exec": "~/.config/waybar/krypt-vms.py",
+        "interval": 5,
+        "return-type": "json",
+        "format": "{}",
+        "tooltip": true,
+        "on-click": "~/.config/rofi/krypt-launcher.sh"
+    },
+
+    // ─────────────────────────────────────────────────────────────────────
+    // RIGHT
+    // ─────────────────────────────────────────────────────────────────────
+
+    "cpu": {
+        "format": "󰻠 {usage}%",
+        "interval": 2,
+        "tooltip": false
+    },
+
+    "memory": {
+        "format": "󰍛 {percentage}%",
+        "interval": 5,
+        "tooltip-format": "{used:0.1f}G / {total:0.1f}G"
+    },
+
+    "network": {
+        "format-wifi":          "󰤨 {signalStrength}%",
+        "format-ethernet":      "󰈀",
+        "format-disconnected":  "󰤭",
+        "format-linked":        "󰈀 (no IP)",
+        "tooltip-format-wifi":  "{essid} ({signalStrength}%)\n{ipaddr}",
+        "tooltip-format-ethernet": "{ifname}\n{ipaddr}",
+        "interval": 10
+    },
+
+    "pulseaudio": {
+        "format":        "{icon} {volume}%",
+        "format-muted":  "󰝟",
+        "format-icons": {
+            "headphone":  "󰋋",
+            "default":   ["󰕿", "󰖀", "󰕾"]
+        },
+        "on-click": "pavucontrol",
+        "scroll-step": 5
+    },
+
+    "battery": {
+        "interval": 30,
+        "format":          "{icon} {capacity}%",
+        "format-charging": "󰂄 {capacity}%",
+        "format-plugged":  "󰚥 {capacity}%",
+        "format-icons":   ["󰂎","󰁺","󰁻","󰁼","󰁽","󰁾","󰁿","󰂀","󰂁","󰂂","󰁹"],
+        "states": {
+            "warning": 30,
+            "critical": 15
+        }
+    },
+
+    "clock": {
+        "format":         "󰥔 {:%H:%M}",
+        "format-alt":     "󰃭 {:%Y-%m-%d %H:%M}",
+        "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>",
+        "interval": 10
+    },
+
+    "tray": {
+        "spacing": 6,
+        "icon-size": 16
+    }
+}

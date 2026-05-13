@@ -1,0 +1,12 @@
+# dom0 physische Ethernet-Interfaces — KEIN IP-Zugang für dom0
+#
+# Sicherheitsprinzip: dom0 hat keinen direkten Internetzugang.
+# Netzwerk wird ausschließlich durch sys-net VM via Xen-PCI-Passthrough verwaltet.
+#
+# Xen-Bridges (xenbr0 etc.) werden von Xen automatisch verwaltet.
+# dom0 selbst bekommt keine IP auf physischen Interfaces.
+[Match]
+Type=ether
+
+[Link]
+Unmanaged=yes

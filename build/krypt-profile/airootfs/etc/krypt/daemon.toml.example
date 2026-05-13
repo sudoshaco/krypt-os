@@ -1,0 +1,137 @@
+# daemon.toml.example — Konfiguration für krypt-daemon
+#
+# Produktionspfad: /etc/krypt/daemon.toml
+# Fehlende Datei: Daemon startet mit sicheren Defaults (kein Panic, kein USB-Gate)
+#
+# Kopieren und anpassen:
+#   sudo install -m 600 daemon.toml.example /etc/krypt/daemon.toml
+
+# ---------------------------------------------------------------------------
+# [daemon] — Allgemeine Daemon-Parameter
+# ---------------------------------------------------------------------------
+[daemon]
+
+# Log-Level: error | warn | info | debug | trace
+# Auch als RUST_LOG-Direktive möglich: "krypt_daemon=debug,tokio=warn"
+log_level = "info"
+
+# Reaktion wenn der Auth-Stick abgezogen wird:
+#   lock    — loginctl lock-sessions    (Desktop sperren, sanfteste Option)
+#   suspend — systemctl suspend         (RAM-Inhalt bleibt erhalten)
+#   nuke    — systemctl poweroff --force --force  (sofortiger Strom-Aus, keine Sync)
+panic_level = "suspend"
+
+# ---------------------------------------------------------------------------
+# [[auth_sticks]] — Registrierte USB-Auth-Sticks
+#
+# Jeder Eintrag ist ein autorisierter Stick. Mindestens einer muss
+# angesteckt sein — sonst löst panic_level aus.
+# Serial ermitteln: udevadm info /dev/disk/by-id/usb-*
+# ---------------------------------------------------------------------------
+
+[[auth_sticks]]
+# USB-Serial des Sticks (erscheint im udev-Event als ID_SERIAL_SHORT)
+serial = "1234567890AB"
+# LUKS2-Key-Slot der diesem Stick zugeordnet ist (0–31)
+luks_slot = 0
+
+# Backup-Stick (anderer Slot, selbes LUKS-Volume)
+[[auth_sticks]]
+serial = "ABCDEF012345"
+luks_slot = 1
+
+# ---------------------------------------------------------------------------
+# [[vms]] — VM-Definitionen
+#
+# Jede VM die krypt-daemon verwaltet braucht einen Eintrag.
+# trust_level bestimmt den Policy-Fallback wenn keine explizite Regel greift.
+#
+# Trust-Level (aufsteigend):
+#   red    — Untrusted: Browser, unbekannte Geräte, Scratch-VMs
+#   orange — Low-trust: Gaming, Social Media
+#   yellow — Medium: Unbekannte Arbeit, Evaluation
+#   green  — Trusted: Work, Personal
+#   black  — Vault: Crypto-Keys, Passwort-Manager, Secrets
+# ---------------------------------------------------------------------------
+
+[[vms]]
+name        = "sys-gui"
+memory_mb   = 2048
+vcpus       = 2
+kernel      = "/boot/vmlinuz-lts"
+trust_level = "green"
+# ramdisk   = "/boot/initramfs-lts.img"   # optional
+# root_disk = "/dev/vg0/sys-gui"           # optional
+
+[[vms]]
+name        = "work"
+memory_mb   = 4096
+vcpus       = 4
+kernel      = "/boot/vmlinuz-lts"
+trust_level = "green"
+root_disk   = "/dev/vg0/work"
+
+[[vms]]
+name        = "browser"
+memory_mb   = 2048
+vcpus       = 2
+kernel      = "/boot/vmlinuz-lts"
+trust_level = "red"
+root_disk   = "/dev/vg0/browser"
+
+[[vms]]
+name        = "vault"
+memory_mb   = 512
+vcpus       = 1
+kernel      = "/boot/vmlinuz-lts"
+trust_level = "black"
+root_disk   = "/dev/vg0/vault"
+
+[[vms]]
+name        = "hacking"
+memory_mb   = 4096
+vcpus       = 4
+kernel      = "/boot/vmlinuz-lts"
+trust_level = "orange"
+root_disk   = "/dev/vg0/hacking"
+
+# ---------------------------------------------------------------------------
+# [[policy]] — Explizite Kommunikations-Regeln
+#
+# Format: source VM → target VM → Aktion
+# Aktionen:
+#   allow   — Zugriff immer erlaubt
+#   deny    — Zugriff immer verweigert
+#   ask     — Benutzer wird gefragt (AskUser-Dialog)
+#
+# Reihenfolge: erste passende Regel gewinnt (first-match-wins).
+# Kein passender Eintrag: Fallback auf Trust-Level-Vergleich.
+#
+# Trust-Level-Fallback:
+#   src.trust >= tgt.trust  → ask
+#   src.trust  < tgt.trust  → deny
+# ---------------------------------------------------------------------------
+
+# Clipboard darf explizit von work nach personal (gleicher Trust-Level → sonst ask)
+[[policy]]
+source = "work"
+target = "personal"
+action = "allow"
+
+# Browser darf niemals Vault erreichen (würde sowieso Deny sein, aber explizit = audit-sicher)
+[[policy]]
+source = "browser"
+target = "vault"
+action = "deny"
+
+# Hacking-VM darf nicht auf Work zugreifen
+[[policy]]
+source = "hacking"
+target = "work"
+action = "deny"
+
+# Work darf Vault nur nach Bestätigung erreichen (kein stiller Zugriff auf Keys)
+[[policy]]
+source = "work"
+target = "vault"
+action = "ask"

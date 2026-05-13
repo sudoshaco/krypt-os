@@ -1,0 +1,154 @@
+# Krypt OS — Zusätzliche Pakete (zu archiso releng packages.x86_64 hinzugefügt)
+# Format: ein Paket pro Zeile. Kommentare mit #.
+#
+# WICHTIG: Pakete müssen in den offiziellen Arch-Repos sein (kein AUR).
+#          Paket-Verfügbarkeit: https://archlinux.org/packages/
+#
+# Status-Annotierungen:
+#   [VERIFIZIERT]   — in offiziellen Repos bestätigt
+#   [PRÜFEN]        — könnte AUR oder falsch benannt sein
+#   [AUR]           — nur über AUR verfügbar, braucht Alternative
+
+# ── Xen Hypervisor ───────────────────────────────────────────────────────────
+# [AUR] xen ist NICHT in den offiziellen Arch-Repos (extra/core/community).
+# Post-install: yay -S xen  (oder eigenes Paket-Repo)
+# Siehe docs/known-issues.md Issue 17.
+# xen-docs ist KEIN separates Paket (Teil von xen)
+# xen-tools ist KEIN offizielles Paket → Funktionalität in xen enthalten
+
+# ── Kernel + initramfs ───────────────────────────────────────────────────────
+# linux-lts als dom0-Kernel (stabiler als linux für Xen)
+linux-lts
+linux-lts-headers
+# mkinitcpio ist in releng bereits enthalten
+mkinitcpio
+
+# ── dm-crypt / LUKS2 ─────────────────────────────────────────────────────────
+# [VERIFIZIERT]
+cryptsetup
+lvm2
+device-mapper
+
+# ── Partitionierung ───────────────────────────────────────────────────────────
+# sgdisk (für Installer), partprobe (in util-linux/base), e2fsprogs (mkfs.ext4)
+gptfdisk
+e2fsprogs
+dosfstools
+
+# ── Installations-Tools (für TUI-Installer) ───────────────────────────────────
+# pacstrap + genfstab
+arch-install-scripts
+
+# ── Bootloader ───────────────────────────────────────────────────────────────
+grub
+efibootmgr
+# os-prober NICHT einbinden — erkennt andere Betriebssysteme automatisch
+# und kann Angreifern Informationen über weitere Systeme liefern.
+
+# ── Wayland / Display ────────────────────────────────────────────────────────
+# [VERIFIZIERT] sys-gui VM
+hyprland
+hyprlock
+hypridle
+xdg-desktop-portal-hyprland
+# xorg-xwayland: Xwayland für Legacy-Apps in sys-gui
+# ACHTUNG: Im dom0 selbst läuft kein Wayland — nur in sys-gui
+xorg-xwayland
+wayland-utils
+wayland-protocols
+# libwayland-server ist KEIN separates Paket — wird von 'wayland' bereitgestellt
+# wayland ist eine automatische Abhängigkeit von hyprland
+
+# ── Statusbar + Launcher ─────────────────────────────────────────────────────
+waybar
+rofi-wayland
+# wofi optional — rofi-wayland reicht
+# wofi
+
+# ── Notifications ────────────────────────────────────────────────────────────
+dunst
+libnotify
+
+# ── Terminal ─────────────────────────────────────────────────────────────────
+foot
+
+# ── Fonts ────────────────────────────────────────────────────────────────────
+# [VERIFIZIERT] Nerd Fonts für Waybar/Rofi Icons
+ttf-jetbrains-mono-nerd
+ttf-nerd-fonts-symbols
+noto-fonts
+noto-fonts-emoji
+
+# ── Plymouth (Boot-Splash) ────────────────────────────────────────────────────
+plymouth
+
+# ── Sicherheit / Kryptografie ────────────────────────────────────────────────
+gnupg
+# [PRÜFEN] yubikey-manager könnte yubikey-manager oder python-yubikey-manager heißen
+yubikey-manager
+libfido2
+tpm2-tools
+tpm2-tss
+# pcsclite für SmartCard/YubiKey (PCSC daemon)
+pcsclite
+ccid
+
+# ── USB ──────────────────────────────────────────────────────────────────────
+usbutils
+libusb
+
+# ── Systemd + Polkit ─────────────────────────────────────────────────────────
+sudo
+polkit
+# dbus und systemd-resolved sind in base/systemd enthalten
+dbus
+
+# ── Python (Installer + Waybar-Module) ───────────────────────────────────────
+python
+python-pip
+# python-rich ist in den offiziellen Repos
+python-rich
+# [PRÜFEN] python-textual: offiziell als python-textual verfügbar ab Arch-Repo 2024
+# Falls nicht verfügbar: pip install --break-system-packages textual
+python-textual
+# psutil für Waybar-Module
+python-psutil
+
+# ── Netzwerk ─────────────────────────────────────────────────────────────────
+networkmanager
+# network-manager-applet für GUI (in sys-gui)
+network-manager-applet
+iwd
+# bridge-utils ist NICHT in extra/core — Funktionalität in iproute2 enthalten
+# (ip link add xenbr0 type bridge) — bridge-utils entfernt
+iproute2
+iptables-nft
+
+# ── Audio (Basis für sys-audio VM später) ─────────────────────────────────────
+pipewire
+pipewire-pulse
+pipewire-alsa
+wireplumber
+
+# ── Text-Editor (dom0 Notfall-Zugang) ────────────────────────────────────────
+neovim
+less
+
+# ── System-Tools ─────────────────────────────────────────────────────────────
+htop
+rsync
+wget
+curl
+man-db
+bash-completion
+# udev ist in systemd/base
+# util-linux ist in base (enthält partprobe, lsblk, blkid etc.)
+
+# ── Entwicklungs-Tools ───────────────────────────────────────────────────────
+# HINWEIS: git und base-devel sind sinnvoll für Debug-ISOs.
+# Für Release-ISOs (v0.1.0+) diese Sektion auskommentieren — spart ~200MB.
+#
+# cargo + rust sind NICHT im ISO — zu groß (~800MB).
+# Krypt-Binaries werden vor dem ISO-Build cross-compiled und eingebunden.
+git
+# base-devel  # auskommentieren für Release

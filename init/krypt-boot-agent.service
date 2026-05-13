@@ -1,0 +1,29 @@
+[Unit]
+Description=Krypt Boot Auth Stick Registration
+Documentation=https://github.com/sudoshaco/krypt-os
+# Läuft einmalig nach krypt-daemon — registriert den beim initramfs-Boot
+# verwendeten Auth-Stick so dass der USB-Monitor ihn gezielt überwacht.
+After=krypt-daemon.service
+Requires=krypt-daemon.service
+# Nur relevant wenn ein LUKS-Root-Device tatsächlich via krypt-Hook geöffnet wurde
+ConditionPathExists=/dev/mapper/krypt-root
+
+[Service]
+Type=oneshot
+# Script liegt unter /usr/lib/krypt/ (kein $PATH-Scanning nötig)
+ExecStart=/usr/lib/krypt/krypt-boot-agent.sh
+# Service gilt als "aktiv" nach einmaligem Durchlauf (für Abhängigkeitsketten)
+RemainAfterExit=yes
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=krypt-boot-agent
+
+# Minimale Rechte: braucht /run/krypt/ (IPC-Socket) und /sys/block/
+ReadWritePaths=/run/krypt
+ProtectHome=yes
+PrivateTmp=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

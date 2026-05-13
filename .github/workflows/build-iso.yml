@@ -1,0 +1,192 @@
+name: CI + ISO Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Job 1: Rust CI Gate (läuft bei jedem Push + PR)
+# ─────────────────────────────────────────────────────────────────────────────
+jobs:
+  rust-ci:
+    name: Rust — test + clippy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Rust-Toolchain einrichten
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cargo-Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+
+      - name: Abhängigkeiten (wayland-client system libs)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            libwayland-dev pkg-config
+
+      - name: cargo clippy — -D warnings
+        run: cargo clippy --workspace -- -D warnings
+
+      - name: cargo test
+        run: cargo test --workspace
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 2: ISO Build (nur bei Tags oder manuell, nach CI-Gate)
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-iso:
+    name: ISO Build
+    needs: rust-ci
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+
+    container:
+      image: archlinux:latest
+      options: --privileged  # mkarchiso braucht loop-Devices
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # für git describe --tags
+
+      - name: System vorbereiten (pacman)
+        run: |
+          pacman-key --init
+          pacman-key --populate
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm \
+            archiso xorriso mtools dosfstools squashfs-tools \
+            git base-devel \
+            rustup
+
+      - name: Rust-Toolchain installieren
+        run: |
+          rustup default stable
+          rustup component add clippy
+
+      - name: Cargo-Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+
+      - name: Wayland-Abhängigkeiten (für gui-protocol)
+        run: |
+          pacman -S --noconfirm wayland wayland-protocols
+
+      - name: cargo clippy (final check)
+        run: cargo clippy --workspace -- -D warnings
+
+      - name: cargo test (final check)
+        run: cargo test --workspace
+
+      - name: cargo build --release
+        run: cargo build --release
+
+      - name: ISO-Profil aufbauen
+        run: |
+          # Binaries in erwarteten Pfad (als root build)
+          ls -la target/release/krypt-daemon target/release/krypt-stick
+
+          # Rust nicht nochmal bauen (Binaries liegen vor)
+          bash build/build.sh --skip-rust --output /tmp/krypt-output
+        env:
+          KRYPT_VERSION: ${{ github.ref_name }}
+
+      - name: ISO signieren (GPG)
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          if [[ -n "${GPG_PRIVATE_KEY:-}" ]]; then
+            echo "${GPG_PRIVATE_KEY}" | gpg --import
+            gpg --batch --yes --detach-sign --armor /tmp/krypt-output/*.iso
+            echo "ISO signiert"
+          else
+            echo "GPG_PRIVATE_KEY nicht gesetzt — Signierung übersprungen"
+          fi
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+
+      - name: Artifact hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: krypt-os-${{ github.ref_name }}
+          path: |
+            /tmp/krypt-output/*.iso
+            /tmp/krypt-output/*.sha256
+            /tmp/krypt-output/*.iso.asc
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: GitHub Release erstellen
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            /tmp/krypt-output/*.iso
+            /tmp/krypt-output/*.sha256
+            /tmp/krypt-output/*.iso.asc
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          body: |
+            ## Krypt OS ${{ github.ref_name }}
+
+            > Cryptography-first. Compartmentalization by design. Lightweight by discipline.
+
+            **Status:** Frühe Entwicklungsversion — nicht für Produktivbetrieb geeignet.
+
+            ### Installieren
+
+            ```bash
+            # SHA256 prüfen
+            sha256sum -c krypt-os-${{ github.ref_name }}.sha256
+
+            # Auf USB schreiben
+            dd if=krypt-os-${{ github.ref_name }}.iso of=/dev/sdX bs=4M status=progress oflag=sync
+            ```
+
+            ### Vollständige Installationsanleitung
+
+            → [docs/install.md](https://github.com/${{ github.repository }}/blob/main/docs/install.md)
+
+            ### Änderungen
+
+            → [PROGRESS.md](https://github.com/${{ github.repository }}/blob/main/PROGRESS.md)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 3: Shell-Script Syntax-Check
+  # ─────────────────────────────────────────────────────────────────────────────
+  shell-check:
+    name: Shell — syntax check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: ShellCheck installieren
+        run: sudo apt-get install -y shellcheck
+
+      - name: ShellCheck
+        run: |
+          find . -name "*.sh" -not -path "*/target/*" -print0 \
+            | xargs -0 shellcheck --severity=error || true
+          # bash -n für alle Shell-Scripts
+          find . -name "*.sh" -not -path "*/target/*" -print0 \
+            | xargs -0 bash -n && echo "Syntax: OK"

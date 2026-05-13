@@ -1,0 +1,11 @@
+target/
+*.iso
+/tmp/
+.env
+*.key
+*.pem
+__pycache__/
+*.pyc
+
+# Local development only — not for repo
+.dev-session

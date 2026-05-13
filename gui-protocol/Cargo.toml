@@ -1,0 +1,22 @@
+[package]
+name = "krypt-gui-protocol"
+version = "0.1.0"
+edition = "2021"
+description = "Wayland-native GUI protocol for Krypt OS AppVM windows"
+
+[[bin]]
+name = "krypt-gui"
+path = "src/main.rs"
+
+[dependencies]
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+
+wayland-client    = "0.31"
+wayland-protocols = { version = "0.31", features = ["client"] }
+
+# Phase 10 — Xen grant table / shared memory FFI:
+# nix = { version = "0.29", features = ["mman", "ioctl"] }

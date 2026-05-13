@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=Krypt
+Description=Krypt OS Boot Splash — ASCII-Animation mit Fortschrittsbalken
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/krypt
+ScriptFile=/usr/share/plymouth/themes/krypt/krypt.script

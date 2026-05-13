@@ -1,0 +1,74 @@
+# /etc/krypt/daemon.toml — Krypt OS Daemon-Konfiguration
+#
+# Generiert von: krypt-installer (TUI) oder manuell erstellt.
+# Format-Referenz: vm-daemon/daemon.toml.example
+#
+# Trust-Level MÜSSEN lowercase sein: black | green | yellow | orange | red
+# Policy-Actions MÜSSEN lowercase sein: allow | deny | ask
+#
+# Befehl zum USB-Stick einrichten (gibt [[auth_sticks]]-Block aus):
+#   sudo krypt-stick --luks-dev /dev/sda2 setup --stick-dev /dev/sdb
+#
+# Nach Änderungen: systemctl restart krypt-daemon
+
+[daemon]
+log_level   = "info"
+# panic_level: lock | suspend | nuke
+# lock    → loginctl lock-sessions (Bildschirm sperren)
+# suspend → systemctl suspend (RAM erhalten, schnellster Shutdown)
+# nuke    → systemctl poweroff (sofort aus)
+panic_level = "suspend"
+
+# ── Auth-Sticks ──────────────────────────────────────────────────────────────
+# Wird von krypt-stick setup automatisch ausgegeben.
+
+# [[auth_sticks]]
+# serial    = "DEINE_STICK_SERIENNUMMER"
+# luks_slot = 1
+
+# ── VMs ──────────────────────────────────────────────────────────────────────
+
+[[vms]]
+name        = "sys-gui"
+memory_mb   = 2048
+vcpus       = 2
+trust_level = "green"
+kernel      = "/boot/vmlinuz-linux-lts"
+
+[[vms]]
+name        = "work"
+memory_mb   = 2048
+vcpus       = 2
+trust_level = "green"
+kernel      = "/boot/vmlinuz-linux-lts"
+
+[[vms]]
+name        = "browser"
+memory_mb   = 2048
+vcpus       = 2
+trust_level = "yellow"
+kernel      = "/boot/vmlinuz-linux-lts"
+
+[[vms]]
+name        = "vault"
+memory_mb   = 1024
+vcpus       = 1
+trust_level = "black"
+kernel      = "/boot/vmlinuz-linux-lts"
+
+# ── Policy ───────────────────────────────────────────────────────────────────
+
+[[policy]]
+source = "work"
+target = "vault"
+action = "ask"
+
+[[policy]]
+source = "browser"
+target = "vault"
+action = "deny"
+
+[[policy]]
+source = "browser"
+target = "work"
+action = "deny"

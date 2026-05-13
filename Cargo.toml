@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "vm-daemon",
+    "krypt-stick",
+    "gui-protocol",
+]
+resolver = "2"
