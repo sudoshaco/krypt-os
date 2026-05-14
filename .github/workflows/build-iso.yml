@@ -11,6 +11,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Job 1: Rust CI Gate (läuft bei jedem Push + PR)
@@ -34,11 +35,11 @@ jobs:
         with:
           workspaces: ". -> target"
 
-      - name: Abhängigkeiten (wayland-client system libs)
+      - name: System-Abhängigkeiten (wayland + udev)
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            libwayland-dev pkg-config
+            libwayland-dev libudev-dev pkg-config
 
       - name: cargo clippy — -D warnings
         run: cargo clippy --workspace -- -D warnings
