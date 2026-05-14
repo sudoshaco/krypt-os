@@ -5,9 +5,9 @@
 Der USB-Stick ist kein Passwort-Ersatz. Er ist der physische Schlüssel zur Existenz des Systems.
 
 ```
-Stick drin   →  System läuft. Normal. Kein Passwort nötig.
-Stick raus   →  Sofort. Alles. Verschlüsselt. Aus.
-Kein Stick   →  Kein Boot. Punkt.
+Stick drin   →  System läuft. 
+Stick raus   →  Sofort alles Verschlüsselt.
+Kein Stick   →  Kein Boot. 
 ```
 
 Kein anderes OS macht das so. Das ist Krypt.
@@ -148,11 +148,11 @@ Slot 2  [BACKUP]   SanDisk 16GB     UUID: c8e4...  Hinzugefügt: 2025-05-13
 
 ## Was passiert wenn der Stick verloren geht
 
-Kurze Antwort: Der Angreifer hat einen USB-Stick mit einer versteckten Datei.
+Der Angreifer hat einen USB-Stick mit einer versteckten Datei.
 Er weiß nicht was das ist. Er kann damit nichts anfangen.
 Das System ist LUKS2-verschlüsselt und startet nicht ohne den Stick.
 
-Längere Antwort: Wenn du keinen Backup-Stick hast, ist das System unzugänglich.
+Wenn du keinen Backup-Stick hast, ist das System unzugänglich.
 Das ist kein Bug. Das ist Krypt.
 
 Wenn du einen Backup-Stick hast:
