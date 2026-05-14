@@ -147,8 +147,8 @@ Der physische Schlüssel zur Existenz des Systems.
 
 ```
 Stick drin   →  System läuft
-Stick raus   →  Sofort. Alles. Eingefroren.
-Kein Stick   →  Kein Boot. Punkt.
+Stick raus   →  Sofort alles Verschlüsselt. Und aus.
+Kein Stick   →  Kein Boot.
 ```
 
 - Normaler USB-Stick — sieht aus wie jeder andere
@@ -158,20 +158,6 @@ Kein Stick   →  Kein Boot. Punkt.
 - **Verlorener Stick ohne Backup: keine Wiederherstellung möglich**
 
 → Details: [docs/usb-kill-switch.md](docs/usb-kill-switch.md)
-
----
-
-## Roadmap
-
-| Phase | Status | Inhalt |
-|---|---|---|
-| 1–5 — Fundament | ✅ | Cargo-Workspace, USB Kill-Switch, Policy Engine, IPC |
-| 6–8 — GUI + Design | ✅ | wayland-client 0.31, Dotfiles, Design-System |
-| 9 — IPC + ADRs | ✅ | VmStart IPC, ADR-011 xdg_toplevel |
-| 10 — 60fps + TUI | ✅ | wl_shm Pipeline, Installer, Neovim-Config |
-| 11 — Final Polish | 🔄 | ISO-Build, CI-Gate, README |
-| 12 — Xen Grant Table | ⬜ | Echte VM-Pixel, wl_frame_callback |
-| Beta | ⬜ | Erstes öffentliches ISO |
 
 ---
 
