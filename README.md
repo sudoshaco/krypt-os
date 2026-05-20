@@ -1,4 +1,4 @@
-
+#Krypt OS
 <div align="center">
 
 ```
@@ -234,26 +234,6 @@ docs: was wurde dokumentiert
 | USB-Stick | 8 GB | 32 GB USB 3.x |
 | TPM | — | TPM 2.0 |
 
----
-
-## Sicherheits-Prinzipien
-
-1. **dom0 bekommt keinen Internetzugang** — nie
-2. **Kein Shared Kernel** — jede AppVM in echter Xen-Domain
-3. **Clipboard nie automatisch** — immer explizite Nutzerbestätigung
-4. **USB nie direkt in AppVMs** — immer via sys-usb
-5. **Keine Secrets in git**
-6. **Security by Default** — restriktivste Policy ist der Default
-
----
-
-## Philosophie
-
-> "Complexity is the enemy of security."
-
-Krypt ist komplex im Sicherheitsmodell, einfach in der Nutzung.
-Ein System das zu aufwändig zu nutzen ist wird nicht genutzt.
-Ein System das nicht genutzt wird schützt nichts.
 
 ---
 
