@@ -1,4 +1,4 @@
-# Krypt OS
+
 <div align="center">
 
 ```
