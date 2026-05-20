@@ -29,7 +29,7 @@ Das Sicherheitsmodell von QubesOS. Die Ästhetik von Omarchy. Der Footprint von 
 
 | Problem | Beispiel |
 |---|---|
-| Sicher aber hässlich und schwer | QubesOS (XFCE, 16GB+ RAM Minimum) |
+| Sicher aber hässlich  | QubesOS (XFCE, 16GB+ RAM Minimum) |
 | Schön aber kein echtes Sicherheitsmodell | Tails, Whonix (kein Hypervisor) |
 | Leichtgewichtig aber unsicher | Alpine, Arch vanilla |
 
