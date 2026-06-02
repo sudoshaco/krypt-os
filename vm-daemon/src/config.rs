@@ -33,6 +33,10 @@ pub enum ConfigError {
     Io(#[from] std::io::Error),
     #[error("toml parse error: {0}")]
     Parse(#[from] toml::de::Error),
+    #[error("invalid VM name '{0}' — must match [a-z0-9_-]{{1,32}}")]
+    InvalidVmName(String),
+    #[error("invalid stick serial '{0}' — must be printable ASCII, 1..=64 chars")]
+    InvalidStickSerial(String),
 }
 
 /// Vollständige Daemon-Konfiguration.
@@ -125,8 +129,51 @@ impl KryptConfig {
     /// Lädt die Konfiguration aus einer TOML-Datei.
     pub fn load(path: &Path) -> Result<Self, ConfigError> {
         let content = std::fs::read_to_string(path)?;
-        Ok(toml::from_str(&content)?)
+        let cfg: Self = toml::from_str(&content)?;
+        cfg.validate()?;
+        Ok(cfg)
     }
+
+    /// Prüft VM-Namen und Stick-Serials. Tippfehler im daemon.toml fallen
+    /// so beim Start auf statt erst bei `xl create` oder USB-Match-Failure.
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        for vm in &self.vms {
+            if !is_valid_vm_name(&vm.name) {
+                return Err(ConfigError::InvalidVmName(vm.name.clone()));
+            }
+        }
+        for stick in &self.auth_sticks {
+            if !is_valid_serial(&stick.serial) {
+                return Err(ConfigError::InvalidStickSerial(stick.serial.clone()));
+            }
+        }
+        for rule in &self.policy {
+            if !is_valid_vm_name(&rule.source) {
+                return Err(ConfigError::InvalidVmName(rule.source.clone()));
+            }
+            if !is_valid_vm_name(&rule.target) {
+                return Err(ConfigError::InvalidVmName(rule.target.clone()));
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Selbe Regel wie vm::is_valid_vm_name — dupliziert weil config.rs sonst
+/// auf vm.rs angewiesen wäre, was zyklisch ist (vm.rs nutzt config.rs Typen).
+fn is_valid_vm_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 32
+        && name.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
+}
+
+/// USB-Stick-Serien: drucker-ASCII, keine Quotes/Whitespace. Manche Sticks
+/// haben Leerzeichen in der Serial — wir akzeptieren sie nicht, lieber soll
+/// der User per `udevadm` die ID_SERIAL_SHORT (ohne Spaces) nehmen.
+fn is_valid_serial(s: &str) -> bool {
+    !s.is_empty()
+        && s.len() <= 64
+        && s.bytes().all(|b| b.is_ascii_graphic())
 }
 
 impl Default for DaemonConfig {

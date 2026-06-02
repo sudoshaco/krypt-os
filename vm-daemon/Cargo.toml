@@ -18,6 +18,8 @@ clap = { version = "4", features = ["derive"] }
 tokio-udev = "0.9"
 futures = "0.3"
 serde_json = "1"
+# umask(2) für sichere Socket-Permissions vor IpcServer::bind
+libc = "0.2"
 
 [features]
 # Aktiviert IpcClient für externe Crates (krypt-agent, AppVM-Agenten).

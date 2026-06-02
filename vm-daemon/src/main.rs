@@ -22,20 +22,30 @@ use std::path::Path;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let config_path = Path::new("/etc/krypt/daemon.toml");
-    let cfg = if config_path.exists() {
-        config::KryptConfig::load(config_path)?
-    } else {
-        eprintln!("krypt-daemon: no config at {}, using defaults", config_path.display());
-        config::KryptConfig::default()
-    };
-
+    // Tracing ZUERST initialisieren — sonst gehen Config-Parse-Fehler verloren.
+    // Log-Level kommt initial aus RUST_LOG (env), Config kann ihn später NICHT
+    // mehr ändern (tracing-subscriber ist global initialisiert).
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_new(&cfg.daemon.log_level)
+            tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
         )
         .init();
+
+    let config_path = Path::new("/etc/krypt/daemon.toml");
+    let cfg = if config_path.exists() {
+        match config::KryptConfig::load(config_path) {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::error!("config parse failed ({}): {e}", config_path.display());
+                return Err(e.into());
+            }
+        }
+    } else {
+        tracing::warn!("no config at {}, using defaults", config_path.display());
+        config::KryptConfig::default()
+    };
+    tracing::debug!("config log_level={} (note: only RUST_LOG is honored)", cfg.daemon.log_level);
 
     tracing::info!(
         "krypt-daemon starting (panic_level={:?}, vms={}, sticks={})",
@@ -87,22 +97,27 @@ async fn main() -> Result<(), Box<dyn Error>> {
     if let Some(parent) = ipc_path.parent() {
         std::fs::create_dir_all(parent).ok();
     }
+    // umask 0o077 vor bind() — socket wird sofort mit perms 0600 erzeugt,
+    // keine TOCTOU-Lücke zwischen bind() und set_permissions().
+    // SAFETY: umask ist process-global. Wir restoren danach den alten Wert.
+    let prev_umask = unsafe { libc::umask(0o077) };
     let ipc_server = match ipc::IpcServer::bind(ipc_path) {
         Ok(s) => {
-            // Socket auf root-only beschränken
-            {
-                use std::os::unix::fs::PermissionsExt;
-                let perms = std::fs::Permissions::from_mode(0o600);
-                let _ = std::fs::set_permissions(ipc_path, perms);
-            }
+            // Extra-Belt: chmod auch noch, falls eine FS-Implementierung
+            // umask ignoriert (z. B. manche tmpfs-Setups).
+            use std::os::unix::fs::PermissionsExt;
+            let perms = std::fs::Permissions::from_mode(0o600);
+            let _ = std::fs::set_permissions(ipc_path, perms);
             tracing::info!("IPC server bound on {} (0600)", ipc_path.display());
             Some(s)
         }
         Err(e) => {
-            tracing::warn!("IPC bind failed ({}): running without IPC", e);
+            tracing::error!("IPC bind failed ({}): VM management offline", e);
             None
         }
     };
+    // SAFETY: umask wieder auf vorherigen Wert
+    unsafe { libc::umask(prev_umask); }
 
     let local = tokio::task::LocalSet::new();
 
@@ -119,9 +134,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let pe = Arc::clone(&policy_engine);
             let vm = Arc::clone(&vm_manager);
             tokio::spawn(async move {
+                // Backoff bei transienten accept-Fehlern. EMFILE/ENFILE etc
+                // sollten nicht den ganzen IPC-Service killen — kurz warten,
+                // dann nochmal. Bei dauerhaftem Fehler steigt der Delay.
+                let mut backoff_ms: u64 = 100;
                 loop {
                     match server.accept().await {
                         Ok(mut conn) => {
+                            backoff_ms = 100; // reset bei Erfolg
                             let pe = Arc::clone(&pe);
                             let vm = Arc::clone(&vm);
                             tokio::spawn(async move {
@@ -144,8 +164,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
                             });
                         }
                         Err(e) => {
-                            tracing::error!("IPC accept error: {e}");
-                            break;
+                            tracing::warn!("IPC accept error: {e} (retry in {backoff_ms}ms)");
+                            tokio::time::sleep(
+                                std::time::Duration::from_millis(backoff_ms)
+                            ).await;
+                            backoff_ms = (backoff_ms * 2).min(30_000);
                         }
                     }
                 }
@@ -168,7 +191,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                             dev.serial,
                             panic_level,
                         );
-                        trigger_panic(panic_level);
+                        trigger_panic(panic_level).await;
                     }
                     Some(usb::UsbEvent::AuthStickConnected(dev)) => {
                         tracing::info!("auth stick connected: serial={:?}", dev.serial);
@@ -300,22 +323,31 @@ async fn dispatch_ipc(
 }
 
 /// Führt die konfigurierte Panik-Aktion aus wenn der Auth-Stick entfernt wird.
-fn trigger_panic(level: config::PanicLevel) {
-    use std::process::Command;
-    match level {
+///
+/// Verwendet tokio::process — `std::process::Command::status()` würde sonst
+/// die Tokio-Runtime blockieren während systemctl/loginctl ausgeführt wird.
+/// In Lock-Mode (loginctl) blockt das den Event-Loop um >100ms; in Nuke-Mode
+/// ist es egal, weil der Prozess gleich stirbt.
+async fn trigger_panic(level: config::PanicLevel) {
+    use tokio::process::Command;
+    let result = match level {
         config::PanicLevel::Lock => {
             tracing::warn!("PANIC: locking all sessions (loginctl lock-sessions)");
-            let _ = Command::new("loginctl").args(["lock-sessions"]).status();
+            Command::new("loginctl").args(["lock-sessions"]).status().await
         }
         config::PanicLevel::Suspend => {
             tracing::warn!("PANIC: suspending system (systemctl suspend)");
-            let _ = Command::new("systemctl").args(["suspend"]).status();
+            Command::new("systemctl").args(["suspend"]).status().await
         }
         config::PanicLevel::Nuke => {
             tracing::warn!("PANIC: emergency poweroff (systemctl poweroff --force --force)");
-            let _ = Command::new("systemctl")
+            Command::new("systemctl")
                 .args(["poweroff", "--force", "--force"])
-                .status();
+                .status()
+                .await
         }
+    };
+    if let Err(e) = result {
+        tracing::error!("PANIC ACTION FAILED: {e} — Auth-Stick wurde abgezogen, System bleibt aktiv!");
     }
 }

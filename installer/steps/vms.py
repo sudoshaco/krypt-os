@@ -237,8 +237,16 @@ def _generate_xl_config(name: str, trust: str, mem_mb: int, vcpus: int) -> str:
 
 
 def _mac(name: str) -> str:
-    h = hash(name) & 0xFFFFFF
-    return f"{(h >> 16) & 0xff:02x}:{(h >> 8) & 0xff:02x}:{h & 0xff:02x}"
+    """Deterministischer 3-Byte MAC-Suffix aus dem VM-Namen.
+
+    Python's eingebautes hash() ist seit 3.3 per-process randomisiert
+    (PYTHONHASHSEED) — Re-Runs des Installers würden sonst jedes Mal neue
+    MACs erzeugen. Das bricht DHCP-Reservierungen, ARP-Caches und Xen-
+    Bridge-Filter. SHA-256 liefert stabile Bytes über alle Runs hinweg.
+    """
+    import hashlib
+    digest = hashlib.sha256(name.encode("utf-8")).digest()
+    return f"{digest[0]:02x}:{digest[1]:02x}:{digest[2]:02x}"
 
 
 def _write_daemon_toml(vms: list) -> None:
