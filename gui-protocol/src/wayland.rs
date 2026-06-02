@@ -127,17 +127,39 @@ impl ShmBuf {
         height: u32,
         qh:     &QueueHandle<WaylandState>,
     ) -> Result<Self, WaylandError> {
-        let stride = width * 4;
-        let size   = (stride * height) as usize;
-        let file   = create_shm_file(size)?;
+        // width/height kommen aus GuestMetadata einer AppVM — untrusted.
+        // Ohne checked_mul könnte width=0xFFFF_FFFF einen winzigen Buffer
+        // erzeugen und nachfolgende Pixel-Schreibvorgänge zu Heap-Overflow
+        // führen. wayland-spec verlangt zudem dass size in i32 passt.
+        let stride: u32 = width
+            .checked_mul(4)
+            .ok_or_else(|| WaylandError::Buffer(format!("stride overflow: width={width}")))?;
+        let size_u32: u32 = stride
+            .checked_mul(height)
+            .ok_or_else(|| WaylandError::Buffer(format!("size overflow: {width}x{height}")))?;
+        let size_i32: i32 = size_u32
+            .try_into()
+            .map_err(|_| WaylandError::Buffer(format!("size > i32::MAX: {size_u32}")))?;
+        let stride_i32: i32 = stride
+            .try_into()
+            .map_err(|_| WaylandError::Buffer(format!("stride > i32::MAX: {stride}")))?;
+        let width_i32: i32 = width
+            .try_into()
+            .map_err(|_| WaylandError::Buffer(format!("width > i32::MAX: {width}")))?;
+        let height_i32: i32 = height
+            .try_into()
+            .map_err(|_| WaylandError::Buffer(format!("height > i32::MAX: {height}")))?;
+
+        let size = size_u32 as usize;
+        let file = create_shm_file(size)?;
 
         let released = Arc::new(AtomicBool::new(true));
-        let pool = shm.create_pool(file.as_fd(), size as i32, qh, ());
+        let pool = shm.create_pool(file.as_fd(), size_i32, qh, ());
         let buffer = pool.create_buffer(
             0,
-            width  as i32,
-            height as i32,
-            stride as i32,
+            width_i32,
+            height_i32,
+            stride_i32,
             wl_shm::Format::Argb8888,
             qh,
             Arc::clone(&released),

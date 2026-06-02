@@ -14,6 +14,7 @@
 #       "format": "{}"
 #   }
 
+import html
 import json
 import socket
 import struct
@@ -97,7 +98,10 @@ def build_output(vms: list[dict[str, str]]) -> str:
     for vm in sorted(vms, key=lambda v: v["name"]):
         trust = vm["trust_level"]
         color = COLORS.get(trust, COLORS["gray"])
-        parts.append(f'<span color="{color}">⬤</span> {vm["name"]}')
+        # VM-Namen sind aus daemon.toml (lokal trusted), aber Waybar parst
+        # Pango-Markup — ein Name mit < oder & würde die Statusbar zerschießen.
+        safe_name = html.escape(vm["name"])
+        parts.append(f'<span color="{color}">⬤</span> {safe_name}')
         tooltip_lines.append(f"  {vm['name']} [{trust}]")
 
     return json.dumps({

@@ -157,9 +157,28 @@ fn trust_colored_frame(width: u32, height: u32, trust: &wayland::TrustLevel) -> 
         wayland::TrustLevel::Black  => (0x11, 0x11, 0x1b),  // CRUST
     };
 
-    let count = (width * height) as usize;
-    let mut buf = Vec::with_capacity(count * 4);
-    for _ in 0..count {
+    // width/height kommen aus untrusted Guest-Metadaten — checked_mul
+    // verhindert dass count*4 zu Heap-OOM oder Wraparound führt.
+    // Bei Overflow oder absurder Größe (>256 MiB) → leerer Buffer,
+    // ShmBuf::new würde eh fehlschlagen.
+    const MAX_BYTES: usize = 256 * 1024 * 1024;
+    let count_bytes = match width
+        .checked_mul(height)
+        .and_then(|c| c.checked_mul(4))
+        .map(|c| c as usize)
+    {
+        Some(n) if n <= MAX_BYTES => n,
+        _ => {
+            tracing::warn!(
+                "trust_colored_frame: oversized/overflow {}x{} — leeren Buffer zurück",
+                width, height
+            );
+            return Vec::new();
+        }
+    };
+
+    let mut buf = Vec::with_capacity(count_bytes);
+    for _ in 0..(count_bytes / 4) {
         buf.extend_from_slice(&[b, g, r, 0xff]);  // BGRA → ARGB8888 LE
     }
     buf

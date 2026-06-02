@@ -70,8 +70,15 @@ pub fn run_setup(luks_dev: &str, stick_dev: &str, force: bool) -> crate::luks::R
         stick.seek(SeekFrom::Start(KEY_OFFSET))?;
         stick.write_all(&key)?;
         stick.flush()?;
-        // sync auf Block-Device — wichtig vor luksAddKey (via libc)
-        unsafe { libc::fsync(stick.as_raw_fd()) };
+        // sync auf Block-Device — wichtig vor luksAddKey (via libc).
+        // Wenn fsync schlägt fehl (I/O-Error auf Stick, schreibgeschützt),
+        // dann ist der Key nur im Cache, nicht persistent — bei Stromausfall
+        // vor nächstem sync wäre der LUKS-Slot tot. Hart abbrechen statt
+        // dem User vorzugaukeln, der Setup wäre erfolgreich.
+        if unsafe { libc::fsync(stick.as_raw_fd()) } != 0 {
+            let err = io::Error::last_os_error();
+            return Err(format!("fsync auf {stick_dev} fehlgeschlagen: {err}").into());
+        }
     }
     println!("Schlüssel auf {stick_dev} geschrieben (Offset {KEY_OFFSET}).");
 

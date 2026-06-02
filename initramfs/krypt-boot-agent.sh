@@ -77,31 +77,11 @@ find_boot_stick_uuid() {
 }
 
 # ---------------------------------------------------------------------------
-# Einfaches IPC-Request via socat (falls vorhanden) oder Python-Fallback
-# ---------------------------------------------------------------------------
-send_ipc() {
-    local msg="$1"
-    local msg_len=${#msg}
-
-    # 4-Byte-LE-Länge + JSON via Python (kein externes socat nötig)
-    python3 - <<EOF
-import socket, struct, json, sys
-
-SOCKET_PATH = "$SOCKET_PATH"
-msg = $msg.encode("utf-8")
-
-with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
-    s.settimeout(3.0)
-    s.connect(SOCKET_PATH)
-    s.sendall(struct.pack("<I", len(msg)) + msg)
-    raw_len = s.recv(4)
-    length  = struct.unpack("<I", raw_len)[0]
-    body    = s.recv(length)
-    response = json.loads(body)
-    print(json.dumps(response))
-EOF
-}
-
+# (Phase 7+) IPC-Request für RegisterBootStick wird hier hinzukommen.
+# Bis dahin: Stick-UUID nur in $BOOT_STICK_FILE persistieren, krypt-daemon
+# liest sie beim eigenen Start. send_ipc() wurde entfernt, weil es nirgends
+# aufgerufen wurde und die Python-Heredoc-Interpolation von $msg fragil ist
+# (würde bei JSON mit Quotes oder Newlines brechen).
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------

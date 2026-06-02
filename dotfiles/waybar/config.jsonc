@@ -70,12 +70,12 @@
     // ─────────────────────────────────────────────────────────────────────
 
     "custom/krypt-vms": {
-        "exec": "~/.config/waybar/krypt-vms.py",
+        "exec": "$HOME/.config/waybar/krypt-vms.py",
         "interval": 5,
         "return-type": "json",
         "format": "{}",
         "tooltip": true,
-        "on-click": "~/.config/rofi/krypt-launcher.sh"
+        "on-click": "$HOME/.config/rofi/krypt-launcher.sh"
     },
 
     // ─────────────────────────────────────────────────────────────────────

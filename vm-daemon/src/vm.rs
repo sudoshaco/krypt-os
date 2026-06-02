@@ -18,8 +18,19 @@ pub enum VmError {
     AlreadyRunning(String),
     #[error("xl command failed: {0}")]
     XlFailed(String),
+    #[error("invalid VM name '{0}' — must match [a-z0-9_-]{{1,32}}")]
+    InvalidName(String),
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
+}
+
+/// Erlaubt nur kleine Buchstaben, Ziffern, `-`, `_` und Länge 1..=32.
+/// Schützt vor Path-Traversal in /run/krypt/krypt-<name>.cfg und vor
+/// xl-Config-Parser-Fehlern (xl akzeptiert keine Quotes/Newlines).
+pub fn is_valid_vm_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 32
+        && name.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,8 +70,15 @@ impl Vm {
         }
     }
 
-    /// Schreibt eine minimale xl-Config nach /tmp/krypt-<name>.cfg.
+    /// Schreibt eine minimale xl-Config nach /run/krypt/krypt-<name>.cfg.
     async fn write_xl_cfg(&self) -> Result<PathBuf, VmError> {
+        // Path-Traversal-Schutz: name geht in den Dateinamen ein.
+        // Auch wenn die Config heute aus trusted daemon.toml stammt, schützt
+        // das vor Tippfehlern (z. B. "vm/test") die sonst /run/vm/test.cfg
+        // erzeugen würden statt /run/krypt/krypt-vm/test.cfg.
+        if !is_valid_vm_name(&self.config.name) {
+            return Err(VmError::InvalidName(self.config.name.clone()));
+        }
         let mut cfg = format!(
             "name = \"{}\"\nmemory = {}\nvcpus = {}\nkernel = \"{}\"\n",
             self.config.name, self.config.memory_mb, self.config.vcpus, self.config.kernel,
@@ -195,5 +213,33 @@ impl VmManager {
 impl Default for VmManager {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_valid_vm_name;
+
+    #[test]
+    fn accepts_typical_names() {
+        for ok in ["sys-gui", "work", "browser", "vault", "x", "a1_2-3"] {
+            assert!(is_valid_vm_name(ok), "should accept: {ok}");
+        }
+    }
+
+    #[test]
+    fn rejects_traversal_and_special_chars() {
+        for bad in [
+            "",
+            "../etc/passwd",
+            "foo/bar",
+            "Foo",        // uppercase verboten — eindeutige IDs
+            "name with space",
+            "name\nwith\nnewline",
+            "name\"quote",
+            &"x".repeat(33),
+        ] {
+            assert!(!is_valid_vm_name(bad), "should reject: {bad:?}");
+        }
     }
 }
