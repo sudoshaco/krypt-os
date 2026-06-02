@@ -158,14 +158,15 @@ class InstallScreen(Screen):
                  "cryptsetup", "lvm2", "device-mapper",
                  "mkinitcpio", "sudo", "git", "neovim",
                  "python", "python-pip", "less",
-                 "networkmanager", "iproute2", "bridge-utils"])
+                 "networkmanager", "iproute2"])
+            # bridge-utils ist NICHT in extra/core (siehe packages.x86_64) —
+            # Bridge-Setup läuft über iproute2: ip link add xenbr0 type bridge
             # genfstab braucht direktes stdout (kein capture_output)
             self.app.call_from_thread(self._log.write_line, "  $ genfstab -U /mnt >> /mnt/etc/fstab")
             with open("/mnt/etc/fstab", "a") as fstab:
                 subprocess.run(["genfstab", "-U", "/mnt"], stdout=fstab, check=True, timeout=30)
 
             # ── 6. Desktop-Pakete ─────────────────────────────────────────────
-            # xen ist nicht in offiziellen Arch-Repos — post-install via AUR
             phase("Desktop-Pakete", 18)
             run(["arch-chroot", "/mnt", "pacman", "-S", "--noconfirm",
                  "grub", "efibootmgr",
@@ -174,14 +175,27 @@ class InstallScreen(Screen):
                  "pipewire", "pipewire-pulse", "wireplumber",
                  "python-textual", "python-rich", "python-psutil"])
 
+            # ── 6b. Krypt-Repo + Xen ──────────────────────────────────────────
+            # Eigenes Pacman-Repo für Pakete die NICHT in extra/core sind (xen).
+            # Defensiv: wenn Repo nicht erreichbar oder xen-Paket fehlt,
+            # bricht der Install NICHT ab — User bekommt klare Anleitung.
+            xen_installed = _try_install_krypt_repo_and_xen(run, log_fn=lambda s:
+                self.app.call_from_thread(self._log.write_line, f"  {s}")
+            )
+
             # ── 7. GRUB ──────────────────────────────────────────────────────
             phase("Bootloader (GRUB)", 7)
             luks_uuid = run(["blkid", "-s", "UUID", "-o", "value", luks_part]).stdout.strip()
-            _write_grub_config("/mnt/etc/default/grub", luks_uuid)
+            _write_grub_config("/mnt/etc/default/grub", luks_uuid, xen=xen_installed)
             run(["arch-chroot", "/mnt", "grub-install",
                  "--target=x86_64-efi", "--efi-directory=/boot/efi",
                  "--bootloader-id=krypt"])
             run(["arch-chroot", "/mnt", "grub-mkconfig", "-o", "/boot/grub/grub.cfg"])
+            if not xen_installed:
+                self.app.call_from_thread(self._log.write_line,
+                    "  ⚠ Xen wurde nicht installiert — `xl` Befehle werden nach Reboot")
+                self.app.call_from_thread(self._log.write_line,
+                    "    nicht funktionieren. Siehe docs/post-install.md für manuelle Installation.")
 
             # ── 8. Krypt-Binaries + Systemd-Units ────────────────────────────
             phase("Krypt-Daemon installieren", 4)
@@ -212,6 +226,12 @@ class InstallScreen(Screen):
             run(["bash", "-c",
                  "[ -f /usr/bin/krypt-install ] && "
                  "install -Dm755 /usr/bin/krypt-install /mnt/usr/bin/krypt-install || true"])
+
+            # krypt-vm-open Debug-Wrapper (öffnet LUKS + xl create)
+            run(["bash", "-c",
+                 "[ -f /usr/local/bin/krypt-vm-open ] && "
+                 "install -Dm755 /usr/local/bin/krypt-vm-open "
+                 "/mnt/usr/local/bin/krypt-vm-open || true"])
 
             # ── 9. System konfigurieren ───────────────────────────────────────
             phase("System konfigurieren", 5)
@@ -244,6 +264,30 @@ class InstallScreen(Screen):
                  "[ -f /etc/initcpio/install/krypt ] && "
                  "install -Dm644 /etc/initcpio/install/krypt /mnt/etc/initcpio/install/krypt || true"])
 
+            # Root-Passwort + User anlegen — verwendet die LUKS-Passphrase als
+            # initialen Default. Nach erstem Login: `passwd` ändern.
+            self.app.call_from_thread(
+                self._log.write_line,
+                "  ℹ Root-Passwort und User 'krypt' werden mit LUKS-Passphrase initialisiert."
+            )
+            self.app.call_from_thread(
+                self._log.write_line,
+                "    Nach erstem Login mit `passwd` und `passwd krypt` ändern!"
+            )
+            run_interactive(
+                ["arch-chroot", "/mnt", "chpasswd"],
+                stdin_data=f"root:{self.passphrase}\n",
+            )
+            run(["arch-chroot", "/mnt", "useradd", "-m", "-G", "wheel", "-s", "/bin/bash", "krypt"])
+            run_interactive(
+                ["arch-chroot", "/mnt", "chpasswd"],
+                stdin_data=f"krypt:{self.passphrase}\n",
+            )
+            # wheel-Gruppe via sudoers freischalten (mit Passwort)
+            run(["bash", "-c",
+                 "echo '%wheel ALL=(ALL:ALL) ALL' > /mnt/etc/sudoers.d/10-wheel && "
+                 "chmod 440 /mnt/etc/sudoers.d/10-wheel"])
+
             # ── 10. Initramfs generieren ──────────────────────────────────────
             phase("Initramfs generieren", 3)
             run(["arch-chroot", "/mnt", "mkinitcpio", "-P"])
@@ -274,7 +318,14 @@ def _write_file(path: str, content: str) -> None:
         f.write(content)
 
 
-def _write_grub_config(path: str, luks_uuid: str) -> None:
+def _write_grub_config(path: str, luks_uuid: str, xen: bool = False) -> None:
+    """Schreibt /mnt/etc/default/grub mit krypt-LUKS-Cmdline und optional Xen.
+
+    Wenn xen=True wurde das xen-Paket installiert. Dann setzt grub-mkconfig
+    automatisch Multiboot2-Entries via /etc/grub.d/20_linux_xen (xen.gz +
+    vmlinuz-linux-lts + initramfs als module2). Wir setzen zusätzlich
+    GRUB_CMDLINE_XEN für die dom0 Memory- und CPU-Limits.
+    """
     import re
     try:
         with open(path, "r") as f:
@@ -285,9 +336,11 @@ def _write_grub_config(path: str, luks_uuid: str) -> None:
     cmdline = (
         f"cryptdevice=UUID={luks_uuid}:krypt-root "
         f"root=/dev/mapper/krypt-root "
-        f"krypt_luks_uuid={luks_uuid} krypt_luks_name=krypt-root"
+        f"krypt_luks_uuid={luks_uuid} krypt_luks_name=krypt-root "
+        f"quiet splash"
         # krypt_timeout nicht gesetzt = Produktions-Default (unendlich warten)
         # Für QEMU-Tests: GRUB-Editor 'e', dann krypt_timeout=15 anhängen
+        # quiet+splash sorgen dafür dass Plymouth während Boot sichtbar bleibt
     )
     if "GRUB_CMDLINE_LINUX=" in content:
         content = re.sub(
@@ -307,10 +360,82 @@ def _write_grub_config(path: str, luks_uuid: str) -> None:
         "GRUB_SAVEDEFAULT=true\n"
         "GRUB_DISABLE_OS_PROBER=true\n"  # Andere OSes nicht erkennen (Sicherheit)
     )
+    if xen:
+        # dom0 bekommt 2 GB RAM und 2 vCPUs — Rest geht an AppVMs.
+        # Anpassbar je nach Host: GRUB_CMDLINE_XEN_DEFAULT in /etc/default/grub.
+        krypt_grub += (
+            "GRUB_CMDLINE_XEN_DEFAULT=\""
+            "dom0_mem=2048M,max:2048M "
+            "dom0_max_vcpus=2 "
+            "dom0_vcpus_pin "
+            "console=vga"
+            "\"\n"
+        )
     content += krypt_grub
 
     with open(path, "w") as f:
         f.write(content)
+
+
+# ── Krypt-Repo (für Xen u.ä. Pakete die NICHT in extra/core sind) ────────────
+KRYPT_REPO_URL = "https://github.com/sudoshaco/krypt-pkgs/releases/download/latest"
+# Wenn dein Repo woanders liegt: hier den Server-Pfad anpassen.
+# Erwartete Layout: krypt.db, krypt.db.tar.gz, *.pkg.tar.zst
+
+_KRYPT_REPO_PACMAN_CONF = f"""
+
+# ── Krypt-Repo ──────────────────────────────────────────────────────────────
+# Hostet xen + custom Pakete die nicht in extra/core sind.
+# Bei Repo-Migration nur die Server-Zeile anpassen.
+[krypt]
+SigLevel = Optional TrustAll
+Server = {KRYPT_REPO_URL}
+"""
+
+
+def _try_install_krypt_repo_and_xen(run, log_fn) -> bool:
+    """Setzt [krypt]-Repo in pacman.conf und installiert xen — best-effort.
+
+    Rückgabe: True wenn xen-Paket erfolgreich installiert, sonst False.
+    Bei Fehler wird KEIN RuntimeError geworfen — der Install soll weiterlaufen.
+    """
+    import subprocess as _sp
+
+    pacman_conf = "/mnt/etc/pacman.conf"
+    try:
+        with open(pacman_conf, "r") as f:
+            existing = f.read()
+        if "[krypt]" not in existing:
+            with open(pacman_conf, "a") as f:
+                f.write(_KRYPT_REPO_PACMAN_CONF)
+            log_fn("✓ [krypt]-Repo in pacman.conf eingetragen")
+    except OSError as exc:
+        log_fn(f"⚠ pacman.conf nicht beschreibbar ({exc}) — überspringe Xen-Install")
+        return False
+
+    # Repo-DB syncen — DARF fehlschlagen (Repo könnte noch nicht live sein)
+    sync_res = _sp.run(
+        ["arch-chroot", "/mnt", "pacman", "-Sy", "--noconfirm"],
+        capture_output=True, text=True, timeout=300,
+    )
+    if sync_res.returncode != 0:
+        log_fn(f"⚠ pacman -Sy fehlgeschlagen — Repo nicht erreichbar?")
+        log_fn(f"  Setze KRYPT_REPO_URL in installer/steps/install.py")
+        return False
+
+    # Xen installieren — DARF fehlschlagen (Repo könnte xen nicht haben)
+    xen_res = _sp.run(
+        ["arch-chroot", "/mnt", "pacman", "-S", "--noconfirm", "xen"],
+        capture_output=True, text=True, timeout=600,
+    )
+    if xen_res.returncode != 0:
+        last_err = xen_res.stderr.strip().splitlines()[-1:] if xen_res.stderr else []
+        log_fn(f"⚠ xen-Install fehlgeschlagen — {last_err[0] if last_err else 'unbekannt'}")
+        log_fn(f"  Manuell nach Reboot: pacman -S xen (aus [krypt] Repo)")
+        return False
+
+    log_fn("✓ xen-Hypervisor installiert (multiboot2 GRUB-Entry wird generiert)")
+    return True
 
 
 _DOM0_LO_NETWORK = """\
