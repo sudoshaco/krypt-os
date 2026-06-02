@@ -95,12 +95,12 @@ QEMU öffnet ein GTK-Fenster. Erwartete Boot-Sequenz:
 ### 1.3 Live-System gestartet
 
 ```bash
-# Im Live-System (tty1 oder tty2):
-systemctl status krypt-installer-tty1.service
-# Erwartung: active (running) oder active (exited)
-
-# Manuell starten falls Service nicht startet:
+# Im Live-System landet root via agetty-autologin auf tty1.
+# ~/.zlogin ruft ~/.automated_script.sh, das den Installer startet.
+# Manuell neustarten (z. B. wenn beendet wurde):
 sudo krypt-install
+
+# Installer durch Cmdline-Param überspringen:  krypt.installer=off
 ```
 
 | Test | Status | Notizen |

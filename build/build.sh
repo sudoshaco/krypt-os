@@ -133,6 +133,9 @@ file_permissions=(
   ["/usr/bin/krypt-gui"]="0:0:755"
   ["/usr/lib/krypt/krypt-boot-agent.sh"]="0:0:755"
   ["/usr/share/krypt-installer/main.py"]="0:0:755"
+  ["/usr/bin/krypt-install"]="0:0:755"
+  ["/root/.automated_script.sh"]="0:0:700"
+  ["/root/.zlogin"]="0:0:600"
 )
 EOF
 chmod +x "${PROFILE_DIR}/profiledef.sh"
@@ -157,15 +160,16 @@ install -Dm755 "${REPO_ROOT}/initramfs/krypt-boot-agent.sh" \
     "${PROFILE_DIR}/airootfs/usr/lib/krypt/krypt-boot-agent.sh"
 
 # ── systemd-Units ─────────────────────────────────────────────────────────────
+# Die Units werden in den airootfs kopiert, aber NICHT für die Live-ISO
+# aktiviert: krypt-daemon braucht Xen (xl) und würde im Live-System
+# in einen Restart-Loop laufen. Der Installer enabled die Units auf
+# dem Ziel-System (siehe installer/steps/install.py).
 install -Dm644 "${REPO_ROOT}/init/krypt-daemon.service" \
     "${PROFILE_DIR}/airootfs/etc/systemd/system/krypt-daemon.service"
 install -Dm644 "${REPO_ROOT}/init/krypt-boot-agent.service" \
     "${PROFILE_DIR}/airootfs/etc/systemd/system/krypt-boot-agent.service"
 
-# Units aktivieren
 mkdir -p "${PROFILE_DIR}/airootfs/etc/systemd/system/multi-user.target.wants"
-ln -sf "/etc/systemd/system/krypt-daemon.service" \
-    "${PROFILE_DIR}/airootfs/etc/systemd/system/multi-user.target.wants/krypt-daemon.service"
 
 # ── Rust-Binaries ─────────────────────────────────────────────────────────────
 log "Rust-Binaries einbinden…"
@@ -189,7 +193,28 @@ touch "${INST_DST}/steps/__init__.py"
 cat > "${PROFILE_DIR}/airootfs/usr/bin/krypt-install" <<'WRAPPER'
 #!/bin/bash
 # Krypt OS TUI-Installer
-cd /usr/share/krypt-installer
+set -u
+
+INSTALLER_DIR="/usr/share/krypt-installer"
+
+if [[ ! -f "${INSTALLER_DIR}/main.py" ]]; then
+    echo "krypt-install: FEHLER — ${INSTALLER_DIR}/main.py nicht gefunden." >&2
+    echo "                ISO defekt oder Installer nicht eingebunden." >&2
+    exit 2
+fi
+
+# Python-Importpfad fixieren, damit 'from steps.welcome import ...' greift,
+# egal aus welchem cwd der Wrapper gestartet wird.
+cd "${INSTALLER_DIR}" || { echo "krypt-install: cd ${INSTALLER_DIR} fehlgeschlagen" >&2; exit 2; }
+export PYTHONPATH="${INSTALLER_DIR}:${PYTHONPATH:-}"
+
+# Schnelle Sanity-Checks für die drei Pflicht-Module.
+if ! python3 -c "import textual, rich, psutil" 2>/dev/null; then
+    echo "krypt-install: FEHLER — Python-Module fehlen (textual/rich/psutil)." >&2
+    echo "                Erwartet via packages.x86_64 → python-textual etc." >&2
+    exit 3
+fi
+
 exec python3 main.py "$@"
 WRAPPER
 chmod +x "${PROFILE_DIR}/airootfs/usr/bin/krypt-install"
@@ -310,35 +335,69 @@ VMOPEN
 chmod +x "${PROFILE_DIR}/airootfs/usr/local/bin/krypt-vm-open"
 ok "krypt-vm-open installiert"
 
-# ── Autostart des Installers auf tty1 ────────────────────────────────────────
-mkdir -p "${PROFILE_DIR}/airootfs/etc/systemd/system"
-cat > "${PROFILE_DIR}/airootfs/etc/systemd/system/krypt-installer-tty1.service" <<'SVCEOF'
-[Unit]
-Description=Krypt OS TUI-Installer
-After=multi-user.target
-# Nicht starten wenn das System bereits installiert wurde
-ConditionPathExists=!/etc/krypt/.installed
+# ── Autostart des Installers via root-Autologin (.zlogin → .automated_script.sh)
+#
+# Archiso aktiviert auf tty1 ein agetty mit --autologin root. Die Login-Shell
+# (zsh) ruft ~/.zlogin auf, das wiederum ~/.automated_script.sh ausführt.
+# Unser Overlay (build/airootfs/root/.automated_script.sh) startet von dort aus
+# /usr/bin/krypt-install.
+#
+# Vorteil gegenüber einer eigenen systemd-Unit: kein TTY-Konflikt mit getty,
+# Plymouth-Boot-Splash bleibt aktiv, und beim Beenden landet der User in der
+# autologged Shell statt vor einem leeren Prompt.
+log "Installer-Autostart (root-autologin → .zlogin → krypt-install)…"
+KRYPT_AUTORUN="${REPO_ROOT}/build/airootfs/root/.automated_script.sh"
+if [[ -f "${KRYPT_AUTORUN}" ]]; then
+    install -Dm755 "${KRYPT_AUTORUN}" \
+        "${PROFILE_DIR}/airootfs/root/.automated_script.sh"
+    ok "Installer-Autostart konfiguriert (.automated_script.sh)"
+else
+    warn ".automated_script.sh nicht im Overlay gefunden — Installer startet nicht automatisch"
+fi
 
-[Service]
-Type=simple
-ExecStart=/usr/bin/krypt-install
-StandardInput=tty
-StandardOutput=tty
-StandardError=journal
-TTYPath=/dev/tty1
-TTYReset=yes
-TTYVHangup=yes
-Restart=on-failure
-RestartSec=3s
+# ── GRUB-Menü Krypt-branden ──────────────────────────────────────────────────
+# Standard-releng grub.cfg sagt "Arch Linux install medium". Wir ersetzen
+# Bezeichnung und Default-Eintrag durch Krypt-OS-Versionen — keine
+# Funktionsänderung, nur Branding.
+if [[ -f "${PROFILE_DIR}/grub/grub.cfg" ]]; then
+    sed -i \
+        -e 's|Arch Linux install medium|Krypt OS Installer|g' \
+        -e 's|Arch Linux install medium with speakup screen reader|Krypt OS Installer (screen reader)|g' \
+        "${PROFILE_DIR}/grub/grub.cfg" \
+        "${PROFILE_DIR}/grub/loopback.cfg" 2>/dev/null || true
+    ok "GRUB-Menüeinträge umbenannt"
+fi
+if [[ -f "${PROFILE_DIR}/syslinux/archiso_sys-linux.cfg" ]]; then
+    sed -i \
+        -e 's|Arch Linux install medium|Krypt OS Installer|g' \
+        "${PROFILE_DIR}/syslinux/archiso_sys-linux.cfg" \
+        "${PROFILE_DIR}/syslinux/archiso_pxe-linux.cfg" 2>/dev/null || true
+    ok "Syslinux-Menüeinträge umbenannt"
+fi
 
-[Install]
-WantedBy=multi-user.target
-SVCEOF
-
-mkdir -p "${PROFILE_DIR}/airootfs/etc/systemd/system/multi-user.target.wants"
-ln -sf "/etc/systemd/system/krypt-installer-tty1.service" \
-    "${PROFILE_DIR}/airootfs/etc/systemd/system/multi-user.target.wants/krypt-installer-tty1.service"
-ok "Installer-Autostart konfiguriert"
+# ── Plymouth: quiet splash an die Kernel-Cmdline anhängen ────────────────────
+# Ohne diese Flags werden Plymouth-Frames vom Kernel-Log überdeckt.
+if [[ -f "${PROFILE_DIR}/grub/grub.cfg" ]] && \
+   ! grep -q 'quiet splash' "${PROFILE_DIR}/grub/grub.cfg"; then
+    sed -i 's|archisosearchuuid=%ARCHISO_UUID%|archisosearchuuid=%ARCHISO_UUID% quiet splash|g' \
+        "${PROFILE_DIR}/grub/grub.cfg"
+    ok "GRUB: quiet splash an Kernel-Cmdline angehängt"
+fi
+if [[ -f "${PROFILE_DIR}/syslinux/archiso_sys-linux.cfg" ]] && \
+   ! grep -q 'quiet splash' "${PROFILE_DIR}/syslinux/archiso_sys-linux.cfg"; then
+    sed -i 's|archisosearchuuid=%ARCHISO_UUID%|archisosearchuuid=%ARCHISO_UUID% quiet splash|g' \
+        "${PROFILE_DIR}/syslinux/archiso_sys-linux.cfg"
+    ok "Syslinux: quiet splash an Kernel-Cmdline angehängt"
+fi
+# UEFI systemd-boot entries (loader/entries/*.conf) wenn archiso sie hat
+if compgen -G "${PROFILE_DIR}/efiboot/loader/entries/*.conf" >/dev/null 2>&1; then
+    for entry in "${PROFILE_DIR}"/efiboot/loader/entries/*.conf; do
+        if grep -q '^options' "${entry}" && ! grep -q 'quiet splash' "${entry}"; then
+            sed -i 's|^options \(.*\)$|options \1 quiet splash|' "${entry}"
+        fi
+    done
+    ok "systemd-boot entries: quiet splash ergänzt"
+fi
 
 ok "Profil fertig: ${PROFILE_DIR}"
 echo ""

@@ -339,7 +339,8 @@ cargo build --release                  → alle 3 Crates, 0 Warnings
 - GRUB-Theme: `dotfiles/grub/krypt-grub` → `airootfs/boot/grub/themes/krypt-grub/`, `/etc/default/grub` mit GRUB_THEME + GRUB_DISTRIBUTOR="Krypt OS"
 - Plymouth-Theme: `dotfiles/plymouth/krypt` → `airootfs/usr/share/plymouth/themes/krypt/`, `plymouthd.conf` setzt Theme=krypt
 - Installer: `installer/` → `airootfs/usr/share/krypt-installer/`, Wrapper-Script `/usr/bin/krypt-install`
-- Installer-Autostart: `krypt-installer-tty1.service` startet TUI auf tty1 wenn `/etc/krypt/.installed` fehlt
+- Installer-Autostart: `~/.automated_script.sh` (aus `build/airootfs/root/`) wird nach root-Autologin via `~/.zlogin` ausgeführt und startet `krypt-install` (Opt-out via `krypt.installer=off`). Kein dedizierter systemd-Service — vermeidet TTY-Konflikt mit `getty@tty1.service`.
+- krypt-daemon NICHT auf der Live-ISO autostarten — kein Xen → wäre Crash-Loop. Installer aktiviert die Unit auf dem Ziel-System.
 - Dotfiles für sys-gui in `/etc/skel/.config/`: nvim, hyprland (→hypr), waybar, rofi, foot, krypt-theme
 - Alle Dotfile-Scripts via chmod +x gesichert
 - krypt-daemon.service in `multi-user.target.wants` verlinkt
