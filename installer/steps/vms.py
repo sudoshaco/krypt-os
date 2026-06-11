@@ -141,9 +141,13 @@ def _create_vm_disk_images(vms: list, log_fn) -> None:
         )
 
         # 2. 64-Byte-Zufallsschlüssel (kein Passwort — nur Key-File)
-        with open(key_path, "wb") as kf:
+        # os.open() statt open() + chmod: ohne die Mode-im-Create-Call läge
+        # der Key zwischen write() und chmod() mit umask-Default (0644 unter
+        # root) auf dem Filesystem — ein paralleler Prozess könnte ihn lesen.
+        # O_EXCL verhindert zudem ein vorhandenes Stale-File als Key-Sink.
+        fd = os.open(key_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o400)
+        with os.fdopen(fd, "wb") as kf:
             kf.write(os.urandom(64))
-        os.chmod(key_path, 0o400)
 
         # 3. LUKS2 formatieren
         log_fn(f"  {name}: cryptsetup luksFormat…")
