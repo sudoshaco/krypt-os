@@ -179,9 +179,18 @@ class InstallScreen(Screen):
 
             # ── 6. Xen + Desktop-Pakete ───────────────────────────────────────
             phase("Xen + Desktop-Pakete", 18)
+            # dunst: dotfiles/hyprland/hyprland.conf hat `exec-once = dunst`
+            # und dotfiles/rofi/krypt-launcher.sh ruft notify-send mehrfach
+            # (Starting VM, Error). Ohne notification daemon hängt notify-send
+            # ein paar Sekunden im DBus-Timeout und das Hyprland-Exec-once
+            # scheitert mit ENOENT — kein User-Feedback bei VM-Aktionen.
+            # Auf der Live-ISO ist dunst via build/packages.x86_64 schon drin,
+            # auf dem installierten System fehlte er.
+            # hyprlock: Lockscreen-Daemon, sonst funktioniert panic_level=lock
+            # auf installed system nicht (hyprctl dispatch exec hyprlock → ENOENT).
             run(["arch-chroot", "/mnt", "pacman", "-S", "--noconfirm",
                  "grub", "efibootmgr",
-                 "hyprland", "waybar", "foot", "rofi-wayland",
+                 "hyprland", "hyprlock", "waybar", "foot", "rofi-wayland", "dunst",
                  "ttf-jetbrains-mono-nerd",
                  "pipewire", "pipewire-pulse", "wireplumber",
                  "python-textual", "python-rich", "python-psutil"])
