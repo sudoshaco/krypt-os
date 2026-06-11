@@ -44,12 +44,22 @@ return {
       local capabilities = require("cmp_nvim_lsp").default_capabilities()
 
       -- Diagnostics-Stil
+      -- nvim 0.10+: signs als Tabelle direkt in vim.diagnostic.config({signs={text=…}}).
+      -- Die alte sign_define-API ist deprecated und löst bei jedem LSP-Open eine
+      -- Notice aus.
       vim.diagnostic.config({
         virtual_text = {
           prefix = "●",
           source = "if_many",
         },
-        signs       = true,
+        signs = {
+          text = {
+            [vim.diagnostic.severity.ERROR] = " ",
+            [vim.diagnostic.severity.WARN]  = " ",
+            [vim.diagnostic.severity.HINT]  = " ",
+            [vim.diagnostic.severity.INFO]  = " ",
+          },
+        },
         underline   = true,
         update_in_insert = false,
         severity_sort    = true,
@@ -60,13 +70,6 @@ return {
           prefix  = "",
         },
       })
-
-      -- Diagnostic-Signs (Gutter-Icons)
-      local signs = { Error = " ", Warn = " ", Hint = " ", Info = " " }
-      for type, icon in pairs(signs) do
-        local hl = "DiagnosticSign" .. type
-        vim.fn.sign_define(hl, { text = icon, texthl = hl, numhl = hl })
-      end
 
       -- on_attach: Keybindings nur wenn LSP aktiv
       local on_attach = function(_, bufnr)
@@ -88,8 +91,19 @@ return {
         on_attach    = on_attach,
         settings = {
           ["rust-analyzer"] = {
-            cargo     = { allFeatures = true, loadOutDirsFromCheck = true },
-            checkOnSave = { command = "clippy", extraArgs = { "--", "-D", "warnings" } },
+            -- cargo.loadOutDirsFromCheck wurde durch cargo.buildScripts.enable
+            -- ersetzt (rust-analyzer 2023+); alte Form gibt eine Notice je File-Open.
+            -- checkOnSave als Tabelle ist ebenfalls deprecated → boolean + dedicated
+            -- "check"-Sektion mit Clippy-Args.
+            cargo     = {
+              allFeatures  = true,
+              buildScripts = { enable = true },
+            },
+            checkOnSave = true,
+            check       = {
+              command   = "clippy",
+              extraArgs = { "--", "-D", "warnings" },
+            },
             procMacro = { enable = true },
             inlayHints = {
               bindingModeHints    = { enable = true },
