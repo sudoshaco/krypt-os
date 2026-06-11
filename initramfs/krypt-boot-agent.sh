@@ -3,11 +3,11 @@
 #
 # Läuft als systemd-Service in dom0 direkt nach dem Start von krypt-daemon.
 # Aufgabe: den beim initramfs-Boot verwendeten Auth-Stick identifizieren
-# und dessen UUID via IPC an krypt-daemon melden, damit der USB-Monitor
+# und dessen Serial via IPC an krypt-daemon melden, damit der USB-Monitor
 # weiss welchen Stick er überwachen soll.
 #
 # Hintergrund: Der initramfs-Hook öffnet LUKS und bootet weiter.
-# Krypt-daemon startet später — er kennt die Stick-UUID noch nicht.
+# Krypt-daemon startet später — er kennt die Stick-Serial noch nicht.
 # Dieser Agent schliesst diese Lücke.
 #
 # Systemd-Unit: /etc/systemd/system/krypt-boot-agent.service
@@ -28,7 +28,7 @@ set -euo pipefail
 
 SOCKET_PATH="/run/krypt/ipc.sock"
 LUKS_NAME="krypt-root"
-BOOT_STICK_FILE="/run/krypt/boot-stick-uuid"
+BOOT_STICK_FILE="/run/krypt/boot-stick-serial"
 
 log() { echo "krypt-boot-agent: $*" >&2; }
 
@@ -47,10 +47,10 @@ wait_for_socket() {
 }
 
 # ---------------------------------------------------------------------------
-# Stick-UUID ermitteln: welches USB-Device hat das krypt-root-Volume geöffnet?
+# Stick-Serial ermitteln: welches USB-Device hat das krypt-root-Volume geöffnet?
 # Weg: /sys/block/dm-N/slaves/ → welches Block-Device steckt dahinter.
 # ---------------------------------------------------------------------------
-find_boot_stick_uuid() {
+find_boot_stick_serial() {
     # dm-crypt Device für krypt-root finden
     local dm_dev
     dm_dev=$(dmsetup info -c --noheadings -o blkdevname "$LUKS_NAME" 2>/dev/null) || {
@@ -68,17 +68,20 @@ find_boot_stick_uuid() {
     local parent
     parent=$(lsblk -no PKNAME "/dev/${slave}" 2>/dev/null || echo "$slave")
 
-    # UUID aus sysfs oder udevadm
-    local uuid
-    uuid=$(udevadm info --query=property --name="/dev/${parent}" 2>/dev/null \
-           | grep '^ID_SERIAL=' | cut -d= -f2)
+    # Serial aus udevadm — ID_SERIAL_SHORT entspricht dem Format das
+    # krypt-stick aus /sys/block/<dev>/device/serial liest und das auch
+    # in daemon.toml [[auth_sticks]] serial steht. ID_SERIAL wäre die
+    # lange vendor+model+serial-Form und würde dem daemon-Matching fehlen.
+    local serial
+    serial=$(udevadm info --query=property --name="/dev/${parent}" 2>/dev/null \
+             | grep '^ID_SERIAL_SHORT=' | cut -d= -f2)
 
-    echo "$uuid"
+    echo "$serial"
 }
 
 # ---------------------------------------------------------------------------
 # (Phase 7+) IPC-Request für RegisterBootStick wird hier hinzukommen.
-# Bis dahin: Stick-UUID nur in $BOOT_STICK_FILE persistieren, krypt-daemon
+# Bis dahin: Stick-Serial nur in $BOOT_STICK_FILE persistieren, krypt-daemon
 # liest sie beim eigenen Start. send_ipc() wurde entfernt, weil es nirgends
 # aufgerufen wurde und die Python-Heredoc-Interpolation von $msg fragil ist
 # (würde bei JSON mit Quotes oder Newlines brechen).
@@ -90,19 +93,19 @@ main() {
 
     wait_for_socket
 
-    local stick_uuid
-    stick_uuid=$(find_boot_stick_uuid)
+    local stick_serial
+    stick_serial=$(find_boot_stick_serial)
 
-    if [ -z "$stick_uuid" ]; then
-        log "WARN: Stick-UUID nicht ermittelbar — USB-Monitor läuft ohne UUID-Filter"
+    if [ -z "$stick_serial" ]; then
+        log "WARN: Stick-Serial nicht ermittelbar — USB-Monitor läuft ohne Serial-Filter"
         log "      (krypt-daemon verwendet Serials aus daemon.toml)"
         exit 0
     fi
 
-    log "Boot-Stick-UUID: $stick_uuid"
+    log "Boot-Stick-Serial: $stick_serial"
 
-    # UUID für andere Prozesse persistieren
-    echo "$stick_uuid" > "$BOOT_STICK_FILE"
+    # Serial für andere Prozesse persistieren
+    echo "$stick_serial" > "$BOOT_STICK_FILE"
     chmod 600 "$BOOT_STICK_FILE"
 
     # krypt-daemon via IPC über den Boot-Stick informieren
