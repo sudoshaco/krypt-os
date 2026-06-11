@@ -192,6 +192,10 @@ echo ""
 log "Starte QEMU…"
 echo ""
 
+# set -e darf hier NICHT zugreifen — sonst killt der Shell den Script bei
+# einem qemu-Crash und der nachfolgende Log-Block läuft nie. Mit
+# `|| QEMU_EXIT=$?` fangen wir alle Exit-Codes auf und können sie melden.
+QEMU_EXIT=0
 qemu-system-x86_64 \
     -name "Krypt OS" \
     -m "${RAM_MB}M" \
@@ -208,9 +212,8 @@ qemu-system-x86_64 \
     -device virtio-vga \
     -audiodev none,id=noaudio \
     -monitor none \
-    2>&1
+    2>&1 || QEMU_EXIT=$?
 
-QEMU_EXIT=$?
 echo ""
 if [[ $QEMU_EXIT -eq 0 ]]; then
     ok "QEMU beendet (normal)"
