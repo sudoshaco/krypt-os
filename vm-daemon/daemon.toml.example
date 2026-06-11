@@ -95,6 +95,14 @@ kernel      = "/boot/vmlinuz-lts"
 trust_level = "orange"
 root_disk   = "/dev/vg0/hacking"
 
+[[vms]]
+name        = "personal"
+memory_mb   = 2048
+vcpus       = 2
+kernel      = "/boot/vmlinuz-lts"
+trust_level = "green"
+root_disk   = "/dev/vg0/personal"
+
 # ---------------------------------------------------------------------------
 # [[policy]] — Explizite Kommunikations-Regeln
 #
