@@ -34,15 +34,22 @@ Hardware: VT-d/AMD-Vi · TPM2 · Secure Boot
 
 Herzstück von Krypt. Ersetzt qubesd.
 
+**v0.1.0-alpha Status** — implementiert:
+
 ```
-krypt-daemon/src/
-├── policy.rs     Trust-Level-System, Kommunikationsregeln
-├── vm.rs         VM-Lifecycle (start/stop/create/destroy/pause)
-├── ipc.rs        Verschlüsselter Inter-VM-Channel (vchan + ChaCha20)
-├── config.rs     /etc/krypt/policy.toml Parser
-├── tpm.rs        TPM2-Integration (Key-Sealing, PCR-Quotes)
-└── crypto.rs     Kryptografische Primitive (ring crate)
+vm-daemon/src/             (Crate-Name: krypt-daemon, Binary: /usr/bin/krypt-daemon)
+├── policy.rs     Trust-Level-System, Kommunikationsregeln (PolicyEngine)
+├── vm.rs         VM-Lifecycle (start/shutdown/destroy via xl)
+├── ipc.rs        JSON-over-Unix-Domain-Socket (/run/krypt/ipc.sock)
+├── config.rs     /etc/krypt/daemon.toml Parser inkl. validate()
+├── usb.rs        tokio-udev USB-Monitor + AuthStickRemoved-Event
+└── main.rs       Event-Loop, trigger_panic
 ```
+
+Geplant (nicht in v0.1.0-alpha):
+  - `tpm.rs` — TPM2 Key-Sealing (siehe ADR-013)
+  - `crypto.rs` — ChaCha20-Poly1305 für Xen vchan Inter-VM-Channel
+  - Phase 11+ siehe `docs/known-issues.md` und `PROGRESS.md`
 
 ---
 

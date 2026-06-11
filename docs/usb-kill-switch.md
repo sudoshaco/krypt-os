@@ -72,36 +72,45 @@ loop {
 ### Panic-Level (konfigurierbar bei Setup)
 
 ```
-Level 1 — LOCK (schnellste Reaktion, kein Datenverlust)
-  - Alle AppVM-Bildschirme sofort schwarz
-  - Hyprland gesperrt
-  - RAM-Keys in dom0 gelöscht
-  - System wartet auf Stick-Wiedereinlegen
-  - Zeit bis Level 2: konfigurierbar (Standard: 30 Sekunden)
+"lock" — LOCK (schnellste Reaktion, kein Datenverlust)
+  - loginctl lock-sessions: Wayland-Session sperrt sich
+  - AppVMs laufen weiter (laut by-design)
+  - Implementiert in panic::panic_lock (hyprctl dispatch exec hyprlock)
+  - Fallback im Daemon: loginctl lock-sessions
 
-Level 2 — SUSPEND (sicher, wiederherstellbar)
-  - Alle AppVMs pausiert (Xen suspend)
-  - RAM-Inhalt auf verschlüsselte Swap geschrieben
-  - System suspended to disk
-  - Nur mit Stick + optionalem Passwort aufweckbar
+"suspend" — SUSPEND (sicher, wiederherstellbar)
+  - AppVMs werden via xl pause eingefroren
+  - System suspended-to-RAM (S3 — /sys/power/state = "mem")
+  - Wieder-Aufwachen via Stick einstecken + Wake-Event
+  - HINWEIS: NICHT suspended-to-disk (S4) — das würde den
+    LUKS-Key auf Swap schreiben. Siehe commit c91895e.
 
-Level 3 — NUKE (keine Wiederherstellung ohne Stick)
-  - Alle AppVMs sofort killed (kein graceful shutdown)
-  - RAM mehrfach überschrieben (Cold-Boot-Attack-Schutz)
-  - System shutdown
-  - Nur mit Stick neu bootbar
+"nuke" — NUKE (keine Wiederherstellung ohne Stick)
+  - Alle AppVMs via xl destroy zerrissen (kein graceful shutdown)
+  - RAM-Wipe: Phase-5-Stub (placeholder, noch kein Cold-Boot-Schutz)
+  - systemctl poweroff --force + libc::reboot als Hammer
+  - Nur mit Stick neu bootbar (krypt-Hook im initramfs)
 ```
 
-Standardkonfiguration: Level 3 nach 5 Sekunden ohne Stick.
-Konfiguration in `/etc/krypt/panic.toml`:
+Standardkonfiguration: `panic_level = "suspend"`. Delay nicht konfigurierbar —
+die Reaktion erfolgt im selben Event-Loop-Tick wie das UDEV-Remove-Event
+(typisch <50ms).
+
+Konfiguration in `/etc/krypt/daemon.toml` (Format gemäß
+[`vm-daemon/daemon.toml.example`](../vm-daemon/daemon.toml.example)):
 
 ```toml
-[panic]
-level = 3
-delay_seconds = 5
-ram_wipe = true
-ram_wipe_passes = 3
+[daemon]
+log_level   = "info"
+panic_level = "suspend"          # "lock" | "suspend" | "nuke"
 ```
+
+**Was es NICHT gibt** (war im alten Doc behauptet, ist nie implementiert worden):
+  - `delay_seconds`: kein Timer, sofortige Reaktion (kein Wartebudget)
+  - `ram_wipe_passes`: RAM-Wipe ist noch Stub (`panic::wipe_sensitive_memory`,
+    "memory wipe: placeholder (Phase 5)")
+  - `[panic]`-Section: das gesamte File heißt `daemon.toml`, Panic-Setting
+    lebt unter `[daemon]`
 
 ---
 
