@@ -96,7 +96,9 @@ if [[ $SKIP_RUST -eq 0 ]]; then
     PANIC_BIN="${REPO_ROOT}/target/release/krypt-panic"
 
     [[ -f "${DAEMON_BIN}" ]] || die "krypt-daemon binary nicht gefunden nach cargo build"
-    [[ -f "${STICK_BIN}" ]] || die "krypt-stick binary nicht gefunden nach cargo build"
+    [[ -f "${STICK_BIN}" ]]  || die "krypt-stick binary nicht gefunden nach cargo build"
+    [[ -f "${GUI_BIN}" ]]    || die "krypt-gui binary nicht gefunden nach cargo build"
+    [[ -f "${PANIC_BIN}" ]]  || die "krypt-panic binary nicht gefunden nach cargo build"
     ok "Rust release builds fertig"
 else
     warn "--skip-rust: überspringe cargo build"
@@ -177,10 +179,15 @@ mkdir -p "${PROFILE_DIR}/airootfs/etc/systemd/system/multi-user.target.wants"
 # ── Rust-Binaries ─────────────────────────────────────────────────────────────
 log "Rust-Binaries einbinden…"
 mkdir -p "${PROFILE_DIR}/airootfs/usr/bin"
-install -Dm755 "${DAEMON_BIN}"  "${PROFILE_DIR}/airootfs/usr/bin/krypt-daemon"
-[[ -f "${GUI_BIN}" ]]   && install -Dm755 "${GUI_BIN}"   "${PROFILE_DIR}/airootfs/usr/bin/krypt-gui"
-[[ -f "${STICK_BIN}" ]] && install -Dm755 "${STICK_BIN}" "${PROFILE_DIR}/airootfs/usr/bin/krypt-stick"
-[[ -f "${PANIC_BIN}" ]] && install -Dm755 "${PANIC_BIN}" "${PROFILE_DIR}/airootfs/usr/bin/krypt-panic"
+# Im --skip-rust Pfad sind die Binaries möglicherweise von einem alten Run
+# übrig — wir prüfen jetzt mit -f und failen hart wenn was fehlt, statt
+# stillschweigend eine ISO ohne USB-Kill-Switch oder Wayland-GUI zu bauen.
+for bin_var in DAEMON_BIN GUI_BIN STICK_BIN PANIC_BIN; do
+    src="${!bin_var}"
+    name="$(basename "${src}")"
+    [[ -f "${src}" ]] || die "${name} fehlt — Rust-Workspace neu bauen (build.sh ohne --skip-rust)"
+    install -Dm755 "${src}" "${PROFILE_DIR}/airootfs/usr/bin/${name}"
+done
 ok "Binaries eingebunden"
 
 # ── Installer ─────────────────────────────────────────────────────────────────
