@@ -37,6 +37,8 @@ pub enum ConfigError {
     InvalidVmName(String),
     #[error("invalid stick serial '{0}' — must be printable ASCII, 1..=64 chars")]
     InvalidStickSerial(String),
+    #[error("policy references unknown VM '{0}' — not defined in [[vms]]")]
+    UnknownPolicyVm(String),
 }
 
 /// Vollständige Daemon-Konfiguration.
@@ -136,6 +138,8 @@ impl KryptConfig {
 
     /// Prüft VM-Namen und Stick-Serials. Tippfehler im daemon.toml fallen
     /// so beim Start auf statt erst bei `xl create` oder USB-Match-Failure.
+    /// Zusätzlich: policy-Regeln müssen auf in [[vms]] definierte Namen zeigen —
+    /// sonst silent-no-op (matching scheitert, Fallback auf Trust-Level greift).
     pub fn validate(&self) -> Result<(), ConfigError> {
         for vm in &self.vms {
             if !is_valid_vm_name(&vm.name) {
@@ -147,6 +151,8 @@ impl KryptConfig {
                 return Err(ConfigError::InvalidStickSerial(stick.serial.clone()));
             }
         }
+        let known: std::collections::HashSet<&str> =
+            self.vms.iter().map(|v| v.name.as_str()).collect();
         for rule in &self.policy {
             if !is_valid_vm_name(&rule.source) {
                 return Err(ConfigError::InvalidVmName(rule.source.clone()));
@@ -154,8 +160,75 @@ impl KryptConfig {
             if !is_valid_vm_name(&rule.target) {
                 return Err(ConfigError::InvalidVmName(rule.target.clone()));
             }
+            if !known.contains(rule.source.as_str()) {
+                return Err(ConfigError::UnknownPolicyVm(rule.source.clone()));
+            }
+            if !known.contains(rule.target.as_str()) {
+                return Err(ConfigError::UnknownPolicyVm(rule.target.clone()));
+            }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn vm(name: &str) -> VmEntry {
+        VmEntry {
+            name: name.into(),
+            memory_mb: 1024,
+            vcpus: 1,
+            kernel: "/boot/vmlinuz".into(),
+            ramdisk: None,
+            root_disk: None,
+            trust_level: TrustLevel::Red,
+        }
+    }
+
+    fn pol(src: &str, tgt: &str) -> PolicyEntry {
+        PolicyEntry {
+            source: src.into(),
+            target: tgt.into(),
+            action: PolicyAction::Deny,
+        }
+    }
+
+    #[test]
+    fn validate_accepts_policy_referring_to_known_vms() {
+        let cfg = KryptConfig {
+            vms: vec![vm("work"), vm("vault")],
+            policy: vec![pol("work", "vault")],
+            ..Default::default()
+        };
+        assert!(cfg.validate().is_ok());
+    }
+
+    #[test]
+    fn validate_rejects_policy_with_unknown_source() {
+        let cfg = KryptConfig {
+            vms: vec![vm("work"), vm("vault")],
+            policy: vec![pol("wrk", "vault")], // Tippfehler
+            ..Default::default()
+        };
+        match cfg.validate() {
+            Err(ConfigError::UnknownPolicyVm(n)) => assert_eq!(n, "wrk"),
+            other => panic!("expected UnknownPolicyVm, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn validate_rejects_policy_with_unknown_target() {
+        let cfg = KryptConfig {
+            vms: vec![vm("work")],
+            policy: vec![pol("work", "vaullt")],
+            ..Default::default()
+        };
+        match cfg.validate() {
+            Err(ConfigError::UnknownPolicyVm(n)) => assert_eq!(n, "vaullt"),
+            other => panic!("expected UnknownPolicyVm, got {:?}", other),
+        }
     }
 }
 
