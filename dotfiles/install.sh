@@ -103,13 +103,12 @@ info "Waybar"
 do_link "${SCRIPT_DIR}/waybar/config.jsonc"     "${HOME}/.config/waybar/config.jsonc"
 do_link "${SCRIPT_DIR}/waybar/style.css"        "${HOME}/.config/waybar/style.css"
 do_link "${SCRIPT_DIR}/waybar/krypt-vms.py"     "${HOME}/.config/waybar/krypt-vms.py"
-chmod +x "${SCRIPT_DIR}/waybar/krypt-vms.py"
 
 # ── Rofi ────────────────────────────────────────────────────────────────────
+# Exec-Bit der Quellen wird aus dem git-Index getragen — kein chmod nötig.
 info "Rofi"
 do_link "${SCRIPT_DIR}/rofi/krypt.rasi"         "${HOME}/.config/rofi/krypt.rasi"
 do_link "${SCRIPT_DIR}/rofi/krypt-launcher.sh"  "${HOME}/.config/rofi/krypt-launcher.sh"
-chmod +x "${SCRIPT_DIR}/rofi/krypt-launcher.sh"
 
 # ── Foot (Terminal) ─────────────────────────────────────────────────────────
 info "Foot"
