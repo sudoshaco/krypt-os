@@ -60,8 +60,34 @@ pub fn add(luks_dev: &str, stick_dev: &str) -> crate::luks::Result<()> {
 }
 
 /// Notiert einen Slot als primär (LUKS2-Token-Support in Phase 6+).
+///
+/// Prüft VOR der Anzeige dass der Slot überhaupt existiert. Vorher hat
+/// `krypt-stick promote 99` einfach "Slot 99 noted as primary" gemeldet,
+/// obwohl Slot 99 LUKS2-unmöglich (max 32) ist — der User hätte das
+/// daemon.toml entsprechend angepasst und den Daemon mit unbrauchbarer
+/// Konfig gestartet.
 pub fn promote(luks_dev: &str, slot: u32) -> crate::luks::Result<()> {
-    // Validieren: Device erreichbar + Slot-Übersicht zeigen
+    let out = std::process::Command::new("cryptsetup")
+        .args(["luksDump", luks_dev])
+        .output()?;
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        return Err(format!("cryptsetup luksDump: {}", stderr.trim()).into());
+    }
+    let dump = String::from_utf8_lossy(&out.stdout);
+    let active = crate::luks::active_slots_from_dump(&dump);
+    if !active.contains(&slot) {
+        return Err(format!(
+            "Slot {slot} ist nicht aktiv auf {luks_dev} — aktive Slots: {}",
+            {
+                let mut v: Vec<u32> = active.iter().copied().collect();
+                v.sort_unstable();
+                v.iter().map(|s| s.to_string()).collect::<Vec<_>>().join(", ")
+            }
+        )
+        .into());
+    }
+
     println!("Current key slots on {luks_dev}:");
     crate::luks::list_slots(luks_dev)?;
     println!("\nSlot {slot} noted as primary stick.");
