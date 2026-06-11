@@ -26,11 +26,16 @@ build() {
     # blkid — optional für Debugging (UUID-Lookup)
     add_binary blkid
 
-    # Kernel-Module für LUKS2 / dm-crypt
+    # Kernel-Module für LUKS2 / dm-crypt.
+    # cryptsetup luksFormat im Installer benutzt --hash=sha512, daher MUSS
+    # sha512 in der initramfs liegen — sonst kann das LUKS2-Digest beim
+    # Stick-Open nicht verifiziert werden. sha256 bleibt drin weil
+    # libcryptsetup einige Header-Felder damit benchmarkt.
     add_module dm-crypt
     add_module dm-mod
     add_module aes
     add_module sha256
+    add_module sha512
 
     # Der Runtime-Hook (hooks/krypt) wird automatisch via add_runscript eingebunden
     add_runscript
