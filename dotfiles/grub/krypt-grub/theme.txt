@@ -14,8 +14,9 @@ title-text:    ""
 title-color:   "#9d4edd"
 title-font:    "JetBrainsMono Nerd Font Regular 14"
 
-# Terminal-Stil (falls GRUB-Shell geöffnet wird)
-terminal-box:        "terminal_c*.png"
+# Terminal-Stil (falls GRUB-Shell geöffnet wird) — kein Pixmap-Box, weil
+# das Theme aktuell keine terminal_c/n/s/e/w/ne/.. PNG-Slices mitliefert.
+# Wer welche hinzufügt: terminal-box = "terminal_c*.png" wieder einkommentieren.
 terminal-font:       "JetBrainsMono Nerd Font Regular 14"
 terminal-border:     0
 
@@ -59,11 +60,13 @@ terminal-border:     0
     item_spacing     = 4
     item_icon_space  = 20
 
-    # Ausgewählter Eintrag
+    # Ausgewählter Eintrag — solider Background, kein Pixmap-Slice (kein PNG
+    # mitgeliefert; selected_item_pixmap_style würde sonst auf nicht vorhandene
+    # select_c.png / select_n.png / ... zugreifen und stillschweigend
+    # auf den Default-Highlight zurückfallen).
     selected_item_color      = "#cdd6f4"
     selected_item_font       = "JetBrainsMono Nerd Font Bold 14"
     selected_background      = "#313244"
-    selected_item_pixmap_style = "select_*.png"
 
     # Kein Scrollbalken nötig (wenige Einträge)
     scrollbar         = false
