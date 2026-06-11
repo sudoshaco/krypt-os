@@ -25,7 +25,19 @@ fn main() {
         "lock"    => panic_lock(),
         "suspend" => panic_suspend(),
         "nuke"    => panic_nuke(),
-        _         => panic_nuke(),
+        other => {
+            // Bewusst fail-secure: Unbekannte Level (Tippfehler, leerer
+            // Wert, böswillige Args) sollen den Auth-Stick-Schutz NIE
+            // schwächer machen. Aber wir loggen die Eskalation laut, damit
+            // im Journal nachvollziehbar ist warum es zum nuke kam — ohne
+            // den Hinweis war eine "--level=fooled-the-config" Eingabe vom
+            // tatsächlich gewollten "--level=nuke" nicht unterscheidbar.
+            eprintln!(
+                "[krypt-panic] WARN: unknown level '{other}' — escalating to NUKE \
+                 (valid levels: lock | suspend | nuke). Check the caller."
+            );
+            panic_nuke();
+        }
     }
 }
 
