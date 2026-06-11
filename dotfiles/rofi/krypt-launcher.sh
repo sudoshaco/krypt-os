@@ -169,18 +169,10 @@ else
     ENTRIES=$(echo "$VM_DATA" | build_entries)
 fi
 
-SELECTED=$(printf "%b" "$ENTRIES" | \
-    rofi -dmenu \
-        -p "󰒊 Krypt VMs" \
-        -theme "$ROFI_THEME" \
-        -format "i" \
-        -display-columns 1 \
-        -no-custom \
-        2>/dev/null)
-
-[[ -z "$SELECTED" ]] && exit 0
-
-# info-Feld des gewählten Eintrags extrahieren
+# Single rofi-Call: -format "info" gibt direkt das in build_entries gesetzte
+# Info-Feld (name|state|trust) zurück. Vorher wurde rofi zweimal aufgerufen
+# (einmal für Index, einmal für Info) — der User musste die VM in zwei
+# Popups auswählen, weil rofi-dmenu keinen Cross-Run-State hat.
 INFO=$(printf "%b" "$ENTRIES" | \
     rofi -dmenu \
         -p "󰒊 Krypt VMs" \
