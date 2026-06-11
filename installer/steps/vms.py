@@ -119,8 +119,15 @@ class VmsScreen(Screen):
 
 def _create_vm_disk_images(vms: list, log_fn) -> None:
     """Erstellt verschlüsselte AppVM-Disk-Images (LUKS2 + ext4) in /mnt/var/lib/krypt/vms/."""
+    # os.makedirs(mode=…, exist_ok=True) wendet den mode NUR beim
+    # Anlegen an — wenn der Pfad aus einem vorigen (abgebrochenen)
+    # Install bereits mit umask-Default 0o755 existiert, bleibt er
+    # world-listable und alle Key-Dateinamen darin durch ls einsehbar.
+    # Wir setzen den mode darum nach makedirs explizit noch einmal.
     os.makedirs(VM_IMAGES_DIR, mode=0o700, exist_ok=True)
-    os.makedirs(VM_KEYS_DIR,   mode=0o700, exist_ok=True)
+    os.chmod(VM_IMAGES_DIR, 0o700)
+    os.makedirs(VM_KEYS_DIR, mode=0o700, exist_ok=True)
+    os.chmod(VM_KEYS_DIR, 0o700)
 
     for name, trust, mem, cpus, _desc in vms:
         img_path = f"{VM_IMAGES_DIR}/{name}.img"
