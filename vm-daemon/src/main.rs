@@ -362,11 +362,13 @@ async fn trigger_panic(level: config::PanicLevel) {
         Err(e) => tracing::warn!("krypt-panic failed to spawn ({e}) — falling back to inline panic"),
     }
 
-    // Fallback path — VM-Freeze inline + systemctl/loginctl. Vorher fehlte
-    // hier der Freeze, weshalb der Fallback bei Suspend/Nuke laufende AppVMs
-    // im Speicher hinterließ. Wir wollen einen minimalen aber funktional
-    // analogen Pfad zu krypt-panic — ohne dessen libc::reboot-Hammer.
-    freeze_running_appvms().await;
+    // Fallback path — VM-Freeze inline + systemctl/loginctl. Lock-Mode
+    // skippt den Freeze (User ist nur weg vom Bildschirm, AppVMs sollen
+    // weiterlaufen — analog zu krypt-panic::panic_lock). Suspend/Nuke
+    // pausieren alle Domains außer dom0 bevor systemctl ranschickt.
+    if !matches!(level, config::PanicLevel::Lock) {
+        freeze_running_appvms().await;
+    }
 
     let result = match level {
         config::PanicLevel::Lock => {
