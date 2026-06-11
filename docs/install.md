@@ -240,44 +240,66 @@ source ~/.cargo/env
 git clone https://github.com/BENUTZER/krypt-os ~/krypt-os
 cd ~/krypt-os
 
-# Workspace bauen
+# Workspace bauen (vier Binaries: krypt-daemon, krypt-stick, krypt-gui, krypt-panic)
 cargo build --release
 
-# Binaries installieren
-sudo install -m755 target/release/krypt-daemon   /usr/local/sbin/krypt-daemon
-sudo install -m755 target/release/krypt-stick    /usr/local/bin/krypt-stick
-sudo install -m755 target/release/gui-protocol   /usr/local/bin/krypt-gui
+# Binaries nach /usr/bin/ — die systemd-Unit hat genau diesen Pfad in
+# ExecStart= hardcoded. Vorher wurde hier /usr/local/sbin/ vorgeschlagen,
+# was zu "203/EXEC: No such file or directory" beim ersten Reboot führte
+# (siehe Installer-Fix b08d113).
+sudo install -m755 target/release/krypt-daemon  /usr/bin/krypt-daemon
+sudo install -m755 target/release/krypt-stick   /usr/bin/krypt-stick
+sudo install -m755 target/release/krypt-gui     /usr/bin/krypt-gui
+sudo install -m755 target/release/krypt-panic   /usr/bin/krypt-panic
 
-# Systemd-Units
-sudo install -m644 krypt-daemon/krypt-daemon.service  /etc/systemd/system/
+# Systemd-Units (Service-Files liegen unter init/, nicht unter krypt-daemon/)
+sudo install -m644 init/krypt-daemon.service       /etc/systemd/system/
+sudo install -m644 init/krypt-boot-agent.service   /etc/systemd/system/
+sudo install -m755 initramfs/krypt-boot-agent.sh   /usr/lib/krypt/krypt-boot-agent.sh
 sudo systemctl daemon-reload
-sudo systemctl enable --now krypt-daemon
+sudo systemctl enable --now krypt-daemon krypt-boot-agent
 ```
 
 ### Daemon-Konfiguration
 
 ```bash
 sudo mkdir -p /etc/krypt
-sudo cp krypt-daemon/daemon.toml.example /etc/krypt/daemon.toml
+sudo cp vm-daemon/daemon.toml.example /etc/krypt/daemon.toml
 sudo vim /etc/krypt/daemon.toml
 ```
 
-Wichtige Felder in `/etc/krypt/daemon.toml`:
+Wichtige Felder in `/etc/krypt/daemon.toml` — vollständige Referenz siehe
+[`vm-daemon/daemon.toml.example`](../vm-daemon/daemon.toml.example):
 
 ```toml
 [daemon]
-socket_path = "/run/krypt/daemon.sock"
-log_level   = "info"
+log_level   = "info"             # error | warn | info | debug | trace
+panic_level = "suspend"          # lock | suspend | nuke
 
-[policy]
-usb_kill_switch = true
-kill_on_unplug  = true
-allowed_devices = []  # wird von krypt-stick befüllt
+# Auth-Sticks werden vom krypt-stick setup ausgegeben — manuell anhängen
+# [[auth_sticks]]
+# serial    = "ABC1234567"
+# luks_slot = 1
 
-[vms]
-# Werden automatisch aus XL-Configs geladen
-xl_config_dir = "/etc/xen/krypt"
+# VM-Definitionen (Array of Tables, ein Block pro VM)
+[[vms]]
+name        = "sys-gui"
+memory_mb   = 2048
+vcpus       = 2
+kernel      = "/boot/vmlinuz-lts"
+trust_level = "green"            # red | orange | yellow | green | black
+
+# Explizite Inter-VM-Regeln; ohne Treffer greift Trust-Level-Fallback
+[[policy]]
+source = "browser"
+target = "vault"
+action = "deny"                  # allow | deny | ask
 ```
+
+`socket_path`, `[policy]` (Tabelle), `usb_kill_switch`, `kill_on_unplug`,
+`xl_config_dir` sind NICHT implementiert — `KryptConfig::validate` lehnt
+solche Felder nicht ab, ignoriert sie aber. Der IPC-Socket ist in
+`vm-daemon/src/ipc.rs` hardcoded als `/run/krypt/ipc.sock`.
 
 ---
 
@@ -287,17 +309,21 @@ Der USB-Stick dient als **Hardware-Schlüssel**: Wird er entfernt, sperrt der kr
 alle laufenden VMs sofort (Suspend-to-RAM oder Force-Shutdown je nach Policy).
 
 ```bash
-# Stick einlegen, dann einrichten:
-sudo krypt-stick --setup \
-    --luks-device /dev/mapper/krypt-root \
-    --slot 1
+# Stick einlegen, dann einrichten — krypt-stick nutzt clap-Subcommands,
+# nicht --setup als Flag. Der Slot wird automatisch über next_free_slot()
+# bestimmt, daher kein --slot Argument.
+sudo krypt-stick \
+    --luks-dev /dev/mapper/krypt-root \
+    setup --stick-dev /dev/sdX
 
-# Test: Stick abziehen — alle VMs müssen einfrieren
-# Stick wieder einlegen — System entsperrt
+# Test: Stick abziehen — VMs werden eingefroren, panic_level greift
+# Stick wieder einlegen — Wake-Event triggert die Session
 ```
 
-> Der Stick wird als zusätzlicher LUKS-Schlüssel in Slot 1 eingetragen (Slot 0 = Passphrase).
-> Der Daemon überwacht `/dev/disk/by-id/` via udev.
+> Der Stick wird als zusätzlicher LUKS-Schlüssel in einem freien Slot
+> eingetragen (typisch 1, weil Slot 0 die Setup-Passphrase hält). Der
+> Daemon überwacht USB-Add/Remove via tokio-udev auf Subsystem `usb`,
+> Devtype `usb_device` (siehe `vm-daemon/src/usb.rs`).
 
 ---
 
@@ -490,15 +516,21 @@ ls /etc/krypt/daemon.toml
 ### USB Kill-Switch löst nicht aus
 
 ```bash
-# udev-Regeln prüfen
-krypt-stick --status
+# Aktive LUKS-Slots auflisten — Stick muss in einem davon registriert sein
+sudo krypt-stick --luks-dev /dev/mapper/krypt-root list
 
-# Daemon-Log
-journalctl -f -u krypt-daemon | grep -i usb
+# Daemon-Log: USB-Events erscheinen als "auth stick connected/removed"
+journalctl -f -u krypt-daemon | grep -iE 'usb|auth stick'
 
-# Manuell testen
-sudo krypt-stick --test-kill
+# Manuell auslösen: krypt-panic direkt mit gewünschtem Level rufen
+# (das macht der Daemon intern via trigger_panic, siehe vm-daemon/src/main.rs)
+sudo /usr/bin/krypt-panic --level=lock      # safe: nur Bildschirm-Lock
+# sudo /usr/bin/krypt-panic --level=suspend  # VMs eingefroren + Suspend-to-RAM
+# sudo /usr/bin/krypt-panic --level=nuke     # destroy alle VMs + Poweroff
 ```
+
+`krypt-stick --status` und `--test-kill` gab es nie als CLI — die Doku
+hatte sich vom clap-Layout in `krypt-stick/src/main.rs` entkoppelt.
 
 ---
 
