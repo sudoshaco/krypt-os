@@ -4,7 +4,10 @@
 
 -- lazy.nvim bootstrap
 local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
-if not vim.loop.fs_stat(lazypath) then
+-- vim.loop ist seit Neovim 0.10 deprecated zugunsten von vim.uv;
+-- der ältere Name bleibt für 0.9-Kompatibilität als Fallback.
+local uv = vim.uv or vim.loop
+if not uv.fs_stat(lazypath) then
   vim.fn.system({
     "git", "clone", "--filter=blob:none",
     "https://github.com/folke/lazy.nvim.git",
