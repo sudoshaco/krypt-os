@@ -41,6 +41,8 @@ pub enum ConfigError {
     UnknownPolicyVm(String),
     #[error("duplicate VM name '{0}' — last [[vms]] block silently won before this check")]
     DuplicateVmName(String),
+    #[error("duplicate auth_sticks serial '{0}' — last [[auth_sticks]] block silently won before this check")]
+    DuplicateStickSerial(String),
 }
 
 /// Vollständige Daemon-Konfiguration.
@@ -152,9 +154,13 @@ impl KryptConfig {
                 return Err(ConfigError::DuplicateVmName(vm.name.clone()));
             }
         }
+        let mut seen_sticks = std::collections::HashSet::with_capacity(self.auth_sticks.len());
         for stick in &self.auth_sticks {
             if !is_valid_serial(&stick.serial) {
                 return Err(ConfigError::InvalidStickSerial(stick.serial.clone()));
+            }
+            if !seen_sticks.insert(stick.serial.as_str()) {
+                return Err(ConfigError::DuplicateStickSerial(stick.serial.clone()));
             }
         }
         let known: std::collections::HashSet<&str> =
@@ -275,6 +281,21 @@ mod tests {
         match cfg.validate() {
             Err(ConfigError::DuplicateVmName(n)) => assert_eq!(n, "work"),
             other => panic!("expected DuplicateVmName, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn validate_rejects_duplicate_stick_serials() {
+        let cfg = KryptConfig {
+            auth_sticks: vec![
+                AuthStickEntry { serial: "AB12".into(), luks_slot: 1 },
+                AuthStickEntry { serial: "AB12".into(), luks_slot: 2 },
+            ],
+            ..Default::default()
+        };
+        match cfg.validate() {
+            Err(ConfigError::DuplicateStickSerial(s)) => assert_eq!(s, "AB12"),
+            other => panic!("expected DuplicateStickSerial, got {:?}", other),
         }
     }
 }
