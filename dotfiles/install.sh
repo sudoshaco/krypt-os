@@ -9,13 +9,15 @@
 #   cd ~/krypt-os && ./dotfiles/install.sh --dry-run   # zeigt was passieren würde
 #   cd ~/krypt-os && ./dotfiles/install.sh --force      # überschreibt existierende Dateien
 
-set -euo pipefail
+set -uo pipefail   # bewusst kein "-e": do_link soll bei einzelnen
+                   # Kollisionen weiterzählen, nicht das ganze Skript töten.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 DRY_RUN=0
 FORCE=0
+CONFLICT_COUNT=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -64,8 +66,14 @@ do_link() {
             mv "$dst" "$backup"
             warn "  Backup: $backup"
         else
+            # Wir zählen Kollisionen, brechen aber NICHT ab. Vor dem Fix hat
+            # set -e zusammen mit `return 1` das ganze Skript getötet sobald
+            # die erste vorhandene Datei (z.B. ein vom User selbst gepflegtes
+            # ~/.config/hypr/hyprland.conf) im Weg lag — Waybar, nvim, Rofi
+            # etc. wurden gar nicht mehr versucht.
             err "$dst existiert bereits (kein Symlink). Nutze --force um zu ersetzen."
-            return 1
+            CONFLICT_COUNT=$((CONFLICT_COUNT + 1))
+            return 0
         fi
     fi
 
@@ -154,6 +162,12 @@ echo ""
 if [[ $DRY_RUN -eq 1 ]]; then
     echo -e "${YELLOW}  DRY-RUN: keine Änderungen vorgenommen.${RESET}"
     echo "  Ohne --dry-run ausführen um zu installieren."
+elif (( CONFLICT_COUNT > 0 )); then
+    echo -e "${YELLOW}  Dotfiles teilweise installiert — ${CONFLICT_COUNT} Kollision(en).${RESET}"
+    echo "  Konflikte oben prüfen, dann '--force' nutzen um zu überschreiben"
+    echo "  (existierende Dateien landen als <name>.krypt-backup-<ts>)."
+    echo ""
+    exit 1
 else
     echo -e "${GREEN}  Dotfiles installiert.${RESET}"
     echo ""
