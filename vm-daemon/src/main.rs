@@ -324,23 +324,56 @@ async fn dispatch_ipc(
 
 /// Führt die konfigurierte Panik-Aktion aus wenn der Auth-Stick entfernt wird.
 ///
-/// Verwendet tokio::process — `std::process::Command::status()` würde sonst
-/// die Tokio-Runtime blockieren während systemctl/loginctl ausgeführt wird.
-/// In Lock-Mode (loginctl) blockt das den Event-Loop um >100ms; in Nuke-Mode
-/// ist es egal, weil der Prozess gleich stirbt.
+/// Bevorzugt /usr/bin/krypt-panic — diese Binary friert vor Suspend/Poweroff
+/// erst alle AppVMs ein (xl pause/destroy), was die README-Garantie
+/// "Stick raus = alle VMs sofort eingefroren" tatsächlich umsetzt.
+///
+/// Fallback (krypt-panic fehlt oder ExitCode≠0): inline systemctl/loginctl —
+/// derselbe Code-Pfad wie vor Phase 11. Ohne VM-Freeze, aber besser als
+/// nichts. Wird mit einer eindeutigen tracing-Warnung markiert damit Ops
+/// im Journal sieht warum die Side-Effects fehlen.
+///
+/// Verwendet tokio::process — std::process::Command::status() würde sonst
+/// die Tokio-Runtime blockieren.
 async fn trigger_panic(level: config::PanicLevel) {
     use tokio::process::Command;
+
+    let level_arg = match level {
+        config::PanicLevel::Lock    => "lock",
+        config::PanicLevel::Suspend => "suspend",
+        config::PanicLevel::Nuke    => "nuke",
+    };
+
+    tracing::warn!("PANIC level={level_arg} — invoking /usr/bin/krypt-panic");
+    let primary = Command::new("/usr/bin/krypt-panic")
+        .arg(format!("--level={level_arg}"))
+        .status()
+        .await;
+
+    match primary {
+        Ok(s) if s.success() => return,
+        Ok(s) => tracing::warn!("krypt-panic exited with {s} — falling back to inline panic"),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            tracing::warn!(
+                "/usr/bin/krypt-panic not installed — falling back to inline panic \
+                 (no VM-freeze step, install krypt-panic to get full coverage)"
+            );
+        }
+        Err(e) => tracing::warn!("krypt-panic failed to spawn ({e}) — falling back to inline panic"),
+    }
+
+    // Fallback path — same systemctl/loginctl semantics as before
     let result = match level {
         config::PanicLevel::Lock => {
-            tracing::warn!("PANIC: locking all sessions (loginctl lock-sessions)");
+            tracing::warn!("PANIC fallback: locking all sessions (loginctl lock-sessions)");
             Command::new("loginctl").args(["lock-sessions"]).status().await
         }
         config::PanicLevel::Suspend => {
-            tracing::warn!("PANIC: suspending system (systemctl suspend)");
+            tracing::warn!("PANIC fallback: suspending system (systemctl suspend)");
             Command::new("systemctl").args(["suspend"]).status().await
         }
         config::PanicLevel::Nuke => {
-            tracing::warn!("PANIC: emergency poweroff (systemctl poweroff --force --force)");
+            tracing::warn!("PANIC fallback: emergency poweroff (systemctl poweroff --force --force)");
             Command::new("systemctl")
                 .args(["poweroff", "--force", "--force"])
                 .status()
