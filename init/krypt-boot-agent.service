@@ -10,6 +10,8 @@ ConditionPathExists=/dev/mapper/krypt-root
 
 [Service]
 Type=oneshot
+User=root
+Group=root
 # Script liegt unter /usr/lib/krypt/ (kein $PATH-Scanning nötig)
 ExecStart=/usr/lib/krypt/krypt-boot-agent.sh
 # Service gilt als "aktiv" nach einmaligem Durchlauf (für Abhängigkeitsketten)
@@ -19,10 +21,20 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=krypt-boot-agent
 
-# Minimale Rechte: braucht /run/krypt/ (IPC-Socket) und /sys/block/
-ReadWritePaths=/run/krypt
+# Sicherheitshärtung — analog zu krypt-daemon, soweit für ein oneshot-Skript
+# das dmsetup/lsblk/udevadm aufruft sinnvoll ist.
+# Boot-Agent braucht NIE Privilege-Escalation; setuid-Binaries sind hier
+# kein Issue (im Unterschied zum daemon, der xl aufrufen muss).
+NoNewPrivileges=true
+ProtectSystem=strict
 ProtectHome=yes
+ReadWritePaths=/run/krypt
 PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
 LockPersonality=yes
 
 [Install]
