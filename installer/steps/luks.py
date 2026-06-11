@@ -76,7 +76,7 @@ class LuksScreen(Screen):
 
             yield Static(
                 "LUKS2 mit Argon2id-KDF (PBKDF2 disabled).\n"
-                "cipher=aes-xts-plain64  key-size=512  hash=sha256\n"
+                "cipher=aes-xts-plain64  key-size=512  hash=sha512\n"
                 "USB Auth-Stick kann im nächsten Schritt eingerichtet werden.",
                 id="info",
             )

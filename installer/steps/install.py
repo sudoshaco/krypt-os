@@ -97,7 +97,18 @@ class InstallScreen(Screen):
         def run_interactive(cmd: list[str], stdin_data: str, timeout: int = 120) -> None:
             self.app.call_from_thread(self._log.write_line, "  $ " + " ".join(cmd))
             proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, text=True)
-            proc.communicate(input=stdin_data, timeout=timeout)
+            try:
+                proc.communicate(input=stdin_data, timeout=timeout)
+            except subprocess.TimeoutExpired:
+                # Python's communicate() killt das Kind bei TimeoutExpired NICHT.
+                # Ohne kill+wait würde cryptsetup ewig hängen und im Hintergrund
+                # auf der LUKS-Partition arbeiten während wir glauben, der
+                # Install sei abgebrochen.
+                proc.kill()
+                proc.wait(timeout=5)
+                raise RuntimeError(
+                    f"Timeout ({timeout}s) erreicht: {' '.join(cmd[:3])}"
+                )
             if proc.returncode != 0:
                 raise RuntimeError(f"Fehlgeschlagen (exit {proc.returncode}): {' '.join(cmd[:3])}")
 
@@ -166,8 +177,8 @@ class InstallScreen(Screen):
             with open("/mnt/etc/fstab", "a") as fstab:
                 subprocess.run(["genfstab", "-U", "/mnt"], stdout=fstab, check=True, timeout=30)
 
-            # ── 6. Desktop-Pakete ─────────────────────────────────────────────
-            phase("Desktop-Pakete", 18)
+            # ── 6. Xen + Desktop-Pakete ───────────────────────────────────────
+            phase("Xen + Desktop-Pakete", 18)
             run(["arch-chroot", "/mnt", "pacman", "-S", "--noconfirm",
                  "grub", "efibootmgr",
                  "hyprland", "waybar", "foot", "rofi-wayland",
@@ -419,8 +430,8 @@ def _try_install_krypt_repo_and_xen(run, log_fn) -> bool:
         capture_output=True, text=True, timeout=300,
     )
     if sync_res.returncode != 0:
-        log_fn(f"⚠ pacman -Sy fehlgeschlagen — Repo nicht erreichbar?")
-        log_fn(f"  Setze KRYPT_REPO_URL in installer/steps/install.py")
+        log_fn("⚠ pacman -Sy fehlgeschlagen — Repo nicht erreichbar?")
+        log_fn("  Setze KRYPT_REPO_URL in installer/steps/install.py")
         return False
 
     # Xen installieren — DARF fehlschlagen (Repo könnte xen nicht haben)
