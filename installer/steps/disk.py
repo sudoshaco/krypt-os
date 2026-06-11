@@ -17,14 +17,49 @@ class BlockDevice:
     model: str
     size_gb: float
     removable: bool
+    is_boot: bool = False     # True wenn das Gerät die gerade gebootete Live-ISO trägt
 
     def label(self) -> str:
-        rm = " [removable]" if self.removable else ""
-        return f"{self.path}  {self.model}  ({self.size_gb:.1f} GB){rm}"
+        rm   = " [removable]" if self.removable else ""
+        boot = "  ⚠ BOOT MEDIUM — Auswahl gesperrt" if self.is_boot else ""
+        return f"{self.path}  {self.model}  ({self.size_gb:.1f} GB){rm}{boot}"
+
+
+def _boot_disk_kernel_name() -> str | None:
+    """Ermittelt den Kernel-Namen (z.B. "sdb" oder "nvme0n1") des Geräts, das die
+    aktuell gebootete Live-ISO enthält. Damit kann der Installer diese Disk aus
+    der Auswahl sperren — versehentliches Überschreiben der eigenen Boot-Quelle
+    ist ein häufiger Foot-Gun in TUI-Installern und für Krypt OS besonders
+    unschön, weil danach kein Recovery-Pfad mehr existiert (keine Live-ISO mehr).
+    """
+    try:
+        # archiso mountet die ISO unter /run/archiso/bootmnt
+        res = subprocess.run(
+            ["findmnt", "-n", "-o", "SOURCE", "/run/archiso/bootmnt"],
+            capture_output=True, text=True, timeout=5,
+        )
+        source = res.stdout.strip()
+        if not source:
+            return None
+        # /dev/sdb1 → sdb; /dev/nvme0n1p1 → nvme0n1
+        res2 = subprocess.run(
+            ["lsblk", "-n", "-o", "PKNAME", source],
+            capture_output=True, text=True, timeout=5,
+        )
+        parent = res2.stdout.strip().splitlines()
+        return parent[0] if parent and parent[0] else None
+    except Exception:
+        return None
 
 
 def list_block_devices() -> list[BlockDevice]:
-    """Gibt alle nicht-Loop Block-Devices zurück (lsblk JSON)."""
+    """Gibt alle nicht-Loop Block-Devices zurück (lsblk JSON).
+
+    Das Boot-Medium wird in der Rückgabe markiert (is_boot=True) statt
+    weggefiltert — der User soll sehen WARUM eine bestimmte Disk fehlt,
+    sonst wundert er sich über den vermissten USB-Stick und steckt einen
+    anderen ein. DiskScreen sperrt die Auswahl auf is_boot-Disks.
+    """
     try:
         out = subprocess.run(
             ["lsblk", "--json", "--output", "NAME,MODEL,SIZE,RM,TYPE", "--bytes"],
@@ -32,16 +67,19 @@ def list_block_devices() -> list[BlockDevice]:
         )
         import json
         data = json.loads(out.stdout)
+        boot_name = _boot_disk_kernel_name()
         devices = []
         for dev in data.get("blockdevices", []):
             if dev.get("type") != "disk":
                 continue
             size_bytes = int(dev.get("size", 0) or 0)
+            name = dev["name"]
             devices.append(BlockDevice(
-                path=f"/dev/{dev['name']}",
+                path=f"/dev/{name}",
                 model=(dev.get("model") or "Unknown").strip(),
                 size_gb=size_bytes / 1e9,
                 removable=bool(dev.get("rm")),
+                is_boot=(boot_name is not None and name == boot_name),
             ))
         return devices
     except Exception:
@@ -123,12 +161,23 @@ class DiskScreen(Screen):
         try:
             idx = int(idx_str)
             self._selected = self._devices[idx]
-            self.query_one("#selection-info", Static).update(
-                f"Ausgewählt: {self._selected.label()}"
-            )
-            self.query_one("#btn-next", Button).disabled = False
         except (ValueError, IndexError):
-            pass
+            return
+
+        # Boot-Medium kann nicht überschrieben werden — würde den laufenden
+        # Installer und den Recovery-Weg gleichzeitig zerstören.
+        if self._selected.is_boot:
+            self.query_one("#selection-info", Static).update(
+                f"{self._selected.path} ist das Boot-Medium — nicht installierbar."
+            )
+            self.query_one("#btn-next", Button).disabled = True
+            self._selected = None
+            return
+
+        self.query_one("#selection-info", Static).update(
+            f"Ausgewählt: {self._selected.label()}"
+        )
+        self.query_one("#btn-next", Button).disabled = False
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-back":
