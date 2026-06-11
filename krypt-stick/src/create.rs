@@ -41,10 +41,27 @@ pub fn run_setup(luks_dev: &str, stick_dev: &str, force: bool) -> crate::luks::R
     println!("  Stick device: {stick_dev}");
     println!();
 
+    // ── GPT-Schutz ─────────────────────────────────────────────────────────
+    // Offset 512–575 liegt MITTEN IM GPT-Primärheader (LBA 1). Würden wir
+    // dort 64 Byte hineinschreiben, ist die GPT zerstört: GPT-magic ("EFI
+    // PART" @ Offset 512–519) wäre weg, partitionierte Sticks würden ihren
+    // gesamten Inhalt verlieren. Vorher hieß die Warnung "Bestehende Daten
+    // bleiben erhalten (nur Sektor 1)" — auf GPT-Sticks gelogen.
+    if has_gpt_at_offset_512(stick_dev)? {
+        return Err(format!(
+            "{stick_dev} hat eine GPT-Partitionstabelle (EFI PART @ Offset 512). \
+             Schreiben würde sie zerstören. \
+             Vorgehen: 'sgdisk --zap-all {stick_dev}' (wischt GPT) oder einen \
+             anderen Stick verwenden. Daten auf dem Stick gehen verloren."
+        ).into());
+    }
+
     // ── Bestätigung ────────────────────────────────────────────────────────
     if !force {
         eprintln!("WARNUNG: 64 Bytes werden auf {stick_dev} ab Offset 512 geschrieben.");
-        eprintln!("         Bestehende Daten auf dem Stick bleiben erhalten (nur Sektor 1).");
+        eprintln!("         MBR-Sektor (0–511) bleibt erhalten. Falls eine erste");
+        eprintln!("         Partition auf LBA 1 anfängt (selten — meist LBA 2048),");
+        eprintln!("         werden deren ersten 64 Bytes überschrieben.");
         eprint!("Fortfahren? [y/N] ");
         io::stdout().flush().ok();
         let mut answer = String::new();
@@ -168,6 +185,18 @@ fn detect_serial_via_udevadm(dev: &str) -> crate::luks::Result<String> {
         }
     }
     Err("ID_SERIAL_SHORT nicht in udevadm-Output".into())
+}
+
+/// Prüft Bytes 512..520 (Beginn von LBA 1) auf den GPT-Magic-String "EFI PART".
+/// Wenn vorhanden, wäre der vorgesehene Key-Bereich identisch mit dem
+/// GPT-Primärheader und ein Schreiben würde die Partitionstabelle vernichten.
+fn has_gpt_at_offset_512(stick_dev: &str) -> crate::luks::Result<bool> {
+    use std::io::{Read, Seek, SeekFrom};
+    let mut f = std::fs::OpenOptions::new().read(true).open(stick_dev)?;
+    f.seek(SeekFrom::Start(512))?;
+    let mut magic = [0u8; 8];
+    f.read_exact(&mut magic)?;
+    Ok(&magic == b"EFI PART")
 }
 
 /// Entfernt Partitions-Suffix: `sdb1` → `sdb`, `nvme0n1p2` → `nvme0n1`.
