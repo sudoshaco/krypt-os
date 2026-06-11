@@ -5,8 +5,9 @@
 //            LUKS2-Token-Tagging (tpm2-tools) ist Phase 6+.
 
 use std::fs::{File, OpenOptions};
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::os::unix::fs::OpenOptionsExt;
+use std::os::unix::io::AsRawFd;
 
 pub fn add(luks_dev: &str, stick_dev: &str) -> crate::luks::Result<()> {
     if !std::path::Path::new(stick_dev).exists() {
@@ -23,6 +24,14 @@ pub fn add(luks_dev: &str, stick_dev: &str) -> crate::luks::Result<()> {
         stick.seek(SeekFrom::Start(512))?;
         stick.write_all(&key)?;
         stick.flush()?;
+        // fsync vor luksAddKey — sonst lebt der Key nur im Cache, und ein
+        // Stromausfall zwischen luksAddKey und nächstem sync bedeutet:
+        // LUKS-Slot existiert, Stick hat keinen Key → Backup tot.
+        // Gleicher Schutz wie in create::run_setup.
+        if unsafe { libc::fsync(stick.as_raw_fd()) } != 0 {
+            let err = io::Error::last_os_error();
+            return Err(format!("fsync auf {stick_dev} fehlgeschlagen: {err}").into());
+        }
     }
 
     let tmp_path = "/tmp/.krypt-backup-key";
