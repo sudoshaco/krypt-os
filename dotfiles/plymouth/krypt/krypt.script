@@ -62,9 +62,19 @@ bar_x      = cx - bar_width / 2;
 bar_y      = cy + 40;
 bar_radius = 2;
 
-// Hintergrunds-Track (dunkel)
+// Hintergrunds-Track (dunkel) — Image(w,h) erzeugt eine LEERE Bitmap mit
+// ausschließlich transparenten Pixeln. Scale() ändert nur die Render-Größe,
+// füllt aber keine Farbe ein. Ohne DrawPixel-Loop war der Track komplett
+// unsichtbar — der "dunkle Untergrund" unter dem Fortschritts-Fill fehlte
+// und der Balken-Anfang schien aus dem Nichts aufzutauchen, sobald
+// progress_callback ihn füllte.
 bar_bg_img = Image(bar_width, bar_height);
-bar_bg_img.Scale(bar_width, bar_height);
+for (bx = 0; bx < bar_width; bx++) {
+    for (by = 0; by < bar_height; by++) {
+        // surface0 (#313244) als ruhiger Catppuccin-Track
+        bar_bg_img.DrawPixel(bx, by, 0x31 / 255.0, 0x32 / 255.0, 0x44 / 255.0, 1.0);
+    }
+}
 bar_bg_sprite = Sprite(bar_bg_img);
 bar_bg_sprite.SetX(bar_x);
 bar_bg_sprite.SetY(bar_y);
