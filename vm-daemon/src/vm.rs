@@ -16,6 +16,8 @@ pub enum VmError {
     NotFound(String),
     #[error("VM '{0}' already running")]
     AlreadyRunning(String),
+    #[error("VM '{0}' is not running")]
+    NotRunning(String),
     #[error("xl command failed: {0}")]
     XlFailed(String),
     #[error("invalid VM name '{0}' — must match [a-z0-9_-]{{1,32}}")]
@@ -138,7 +140,7 @@ impl Vm {
     /// ACPI-Shutdown — sendet Shutdown-Signal an die VM, kein erzwungenes Kill.
     pub async fn shutdown(&mut self) -> Result<(), VmError> {
         if self.state != VmState::Running {
-            return Err(VmError::NotFound(self.config.name.clone()));
+            return Err(VmError::NotRunning(self.config.name.clone()));
         }
 
         let out = Command::new("xl")
