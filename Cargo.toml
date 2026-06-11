@@ -3,5 +3,6 @@ members = [
     "vm-daemon",
     "krypt-stick",
     "gui-protocol",
+    "panic",
 ]
 resolver = "2"

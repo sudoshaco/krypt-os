@@ -1,0 +1,15 @@
+[package]
+name = "krypt-panic"
+version = "0.1.0"
+edition = "2021"
+description = "Krypt OS Emergency Shutdown Handler — minimal-dependency stub"
+
+[[bin]]
+name = "krypt-panic"
+path = "src/main.rs"
+
+[dependencies]
+# libc::reboot(LINUX_REBOOT_CMD_POWER_OFF) als Last-Resort wenn systemctl
+# scheitert (z. B. systemd selbst hängt). Keine async-Runtime, kein tokio —
+# diese Binary MUSS unter allen Umständen laufen.
+libc = "0.2"

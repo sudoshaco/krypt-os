@@ -93,6 +93,7 @@ if [[ $SKIP_RUST -eq 0 ]]; then
     DAEMON_BIN="${REPO_ROOT}/target/release/krypt-daemon"
     GUI_BIN="${REPO_ROOT}/target/release/krypt-gui"
     STICK_BIN="${REPO_ROOT}/target/release/krypt-stick"
+    PANIC_BIN="${REPO_ROOT}/target/release/krypt-panic"
 
     [[ -f "${DAEMON_BIN}" ]] || die "krypt-daemon binary nicht gefunden nach cargo build"
     [[ -f "${STICK_BIN}" ]] || die "krypt-stick binary nicht gefunden nach cargo build"
@@ -102,6 +103,7 @@ else
     DAEMON_BIN="${REPO_ROOT}/target/release/krypt-daemon"
     GUI_BIN="${REPO_ROOT}/target/release/krypt-gui"
     STICK_BIN="${REPO_ROOT}/target/release/krypt-stick"
+    PANIC_BIN="${REPO_ROOT}/target/release/krypt-panic"
 fi
 
 # ── Archiso-Profil aufbauen ───────────────────────────────────────────────────
@@ -131,6 +133,7 @@ file_permissions=(
   ["/usr/bin/krypt-daemon"]="0:0:755"
   ["/usr/bin/krypt-stick"]="0:0:755"
   ["/usr/bin/krypt-gui"]="0:0:755"
+  ["/usr/bin/krypt-panic"]="0:0:755"
   ["/usr/lib/krypt/krypt-boot-agent.sh"]="0:0:755"
   ["/usr/share/krypt-installer/main.py"]="0:0:755"
   ["/usr/bin/krypt-install"]="0:0:755"
@@ -177,6 +180,7 @@ mkdir -p "${PROFILE_DIR}/airootfs/usr/bin"
 install -Dm755 "${DAEMON_BIN}"  "${PROFILE_DIR}/airootfs/usr/bin/krypt-daemon"
 [[ -f "${GUI_BIN}" ]]   && install -Dm755 "${GUI_BIN}"   "${PROFILE_DIR}/airootfs/usr/bin/krypt-gui"
 [[ -f "${STICK_BIN}" ]] && install -Dm755 "${STICK_BIN}" "${PROFILE_DIR}/airootfs/usr/bin/krypt-stick"
+[[ -f "${PANIC_BIN}" ]] && install -Dm755 "${PANIC_BIN}" "${PROFILE_DIR}/airootfs/usr/bin/krypt-panic"
 ok "Binaries eingebunden"
 
 # ── Installer ─────────────────────────────────────────────────────────────────
