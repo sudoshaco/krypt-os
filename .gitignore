@@ -7,5 +7,19 @@ target/
 __pycache__/
 *.pyc
 
+# Build-Artefakte — build/build.sh wipet build/krypt-profile/ vor jedem
+# Run und befüllt es aus /usr/share/archiso/configs/releng/ + Overlays
+# (build/airootfs/, dotfiles/, init/) neu. In Git hatten wir sonst eine
+# driftende Schatten-Kopie.
+build/krypt-profile/
+
+# QEMU-Testartefakte (build/test-qemu.sh, build/make-test-stick.sh)
+build/krypt-test-disk.qcow2
+build/krypt-test-stick.img
+docs/qemu-boot-log.md.serial
+
+# dist/ enthält neben *.iso auch *.sha256 und (falls signiert) *.iso.asc
+dist/
+
 # Local development only — not for repo
 .dev-session

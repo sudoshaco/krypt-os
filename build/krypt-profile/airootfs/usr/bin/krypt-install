@@ -1,4 +1,0 @@
-#!/bin/bash
-# Krypt OS TUI-Installer
-cd /usr/share/krypt-installer
-exec python3 main.py "$@"
