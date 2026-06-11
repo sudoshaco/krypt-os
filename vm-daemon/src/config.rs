@@ -171,6 +171,32 @@ impl KryptConfig {
     }
 }
 
+/// Selbe Regel wie vm::is_valid_vm_name — dupliziert weil config.rs sonst
+/// auf vm.rs angewiesen wäre, was zyklisch ist (vm.rs nutzt config.rs Typen).
+fn is_valid_vm_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 32
+        && name.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
+}
+
+/// USB-Stick-Serien: drucker-ASCII, keine Quotes/Whitespace. Manche Sticks
+/// haben Leerzeichen in der Serial — wir akzeptieren sie nicht, lieber soll
+/// der User per `udevadm` die ID_SERIAL_SHORT (ohne Spaces) nehmen.
+fn is_valid_serial(s: &str) -> bool {
+    !s.is_empty()
+        && s.len() <= 64
+        && s.bytes().all(|b| b.is_ascii_graphic())
+}
+
+impl Default for DaemonConfig {
+    fn default() -> Self {
+        Self {
+            log_level: default_log_level(),
+            panic_level: PanicLevel::default(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -228,32 +254,6 @@ mod tests {
         match cfg.validate() {
             Err(ConfigError::UnknownPolicyVm(n)) => assert_eq!(n, "vaullt"),
             other => panic!("expected UnknownPolicyVm, got {:?}", other),
-        }
-    }
-}
-
-/// Selbe Regel wie vm::is_valid_vm_name — dupliziert weil config.rs sonst
-/// auf vm.rs angewiesen wäre, was zyklisch ist (vm.rs nutzt config.rs Typen).
-fn is_valid_vm_name(name: &str) -> bool {
-    !name.is_empty()
-        && name.len() <= 32
-        && name.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
-}
-
-/// USB-Stick-Serien: drucker-ASCII, keine Quotes/Whitespace. Manche Sticks
-/// haben Leerzeichen in der Serial — wir akzeptieren sie nicht, lieber soll
-/// der User per `udevadm` die ID_SERIAL_SHORT (ohne Spaces) nehmen.
-fn is_valid_serial(s: &str) -> bool {
-    !s.is_empty()
-        && s.len() <= 64
-        && s.bytes().all(|b| b.is_ascii_graphic())
-}
-
-impl Default for DaemonConfig {
-    fn default() -> Self {
-        Self {
-            log_level: default_log_level(),
-            panic_level: PanicLevel::default(),
         }
     }
 }
