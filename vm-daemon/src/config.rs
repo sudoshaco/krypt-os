@@ -39,6 +39,8 @@ pub enum ConfigError {
     InvalidStickSerial(String),
     #[error("policy references unknown VM '{0}' — not defined in [[vms]]")]
     UnknownPolicyVm(String),
+    #[error("duplicate VM name '{0}' — last [[vms]] block silently won before this check")]
+    DuplicateVmName(String),
 }
 
 /// Vollständige Daemon-Konfiguration.
@@ -141,9 +143,13 @@ impl KryptConfig {
     /// Zusätzlich: policy-Regeln müssen auf in [[vms]] definierte Namen zeigen —
     /// sonst silent-no-op (matching scheitert, Fallback auf Trust-Level greift).
     pub fn validate(&self) -> Result<(), ConfigError> {
+        let mut seen = std::collections::HashSet::with_capacity(self.vms.len());
         for vm in &self.vms {
             if !is_valid_vm_name(&vm.name) {
                 return Err(ConfigError::InvalidVmName(vm.name.clone()));
+            }
+            if !seen.insert(vm.name.as_str()) {
+                return Err(ConfigError::DuplicateVmName(vm.name.clone()));
             }
         }
         for stick in &self.auth_sticks {
@@ -254,6 +260,21 @@ mod tests {
         match cfg.validate() {
             Err(ConfigError::UnknownPolicyVm(n)) => assert_eq!(n, "vaullt"),
             other => panic!("expected UnknownPolicyVm, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn validate_rejects_duplicate_vm_names() {
+        // Zwei [[vms]]-Blöcke mit identischem name → vorher hat VmManager::register
+        // den ersten still überschrieben (HashMap::insert), und der User wunderte
+        // sich warum seine ersten Settings (memory, trust_level) ignoriert wurden.
+        let cfg = KryptConfig {
+            vms: vec![vm("work"), vm("work")],
+            ..Default::default()
+        };
+        match cfg.validate() {
+            Err(ConfigError::DuplicateVmName(n)) => assert_eq!(n, "work"),
+            other => panic!("expected DuplicateVmName, got {:?}", other),
         }
     }
 }
