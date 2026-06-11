@@ -97,13 +97,17 @@ impl SurfaceConfig {
 static SHM_COUNTER: AtomicU32 = AtomicU32::new(0);
 
 /// Anonyme Datei in /dev/shm — kein tmpfs-Name nach dem open() (unlink sofort).
+///
+/// truncate(true): wenn ein Stale-File vom selben PID+Counter nach einem
+/// Crash übrig blieb, hätte ein Frame-Update von früher Pixel-Daten dort
+/// gelassen. truncate(true) löscht die garantiert, bevor wir set_len() rufen.
 fn create_shm_file(size: usize) -> Result<std::fs::File, WaylandError> {
     let id  = SHM_COUNTER.fetch_add(1, Ordering::Relaxed);
     let pid = std::process::id();
     let path = format!("/dev/shm/krypt-gui-{}-{}", pid, id);
 
     let file = std::fs::OpenOptions::new()
-        .read(true).write(true).create(true).truncate(false)
+        .read(true).write(true).create(true).truncate(true)
         .open(&path)?;
     std::fs::remove_file(&path).ok();
     file.set_len(size as u64)?;
