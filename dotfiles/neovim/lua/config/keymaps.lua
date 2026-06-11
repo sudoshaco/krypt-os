@@ -44,8 +44,19 @@ map("n", "gi",         vim.lsp.buf.implementation,    { desc = "Implementierung"
 map("n", "<leader>ca", vim.lsp.buf.code_action,       { desc = "Code-Action" })
 map("n", "<leader>rn", vim.lsp.buf.rename,            { desc = "Umbenennen" })
 map("n", "<leader>D",  vim.lsp.buf.type_definition,   { desc = "Typ-Definition" })
-map("n", "[d",         vim.diagnostic.goto_prev,      { desc = "Vorheriger Diagnostic" })
-map("n", "]d",         vim.diagnostic.goto_next,      { desc = "Nächster Diagnostic" })
+-- vim.diagnostic.goto_prev/next sind seit nvim 0.11 deprecated → vim.diagnostic.jump.
+-- Wrapper für Forward-Compat: bevorzugt jump, fällt zurück auf goto_* in 0.10/älter.
+local function diag_jump(count)
+  if vim.diagnostic.jump then
+    vim.diagnostic.jump({ count = count, float = true })
+  elseif count < 0 then
+    vim.diagnostic.goto_prev()
+  else
+    vim.diagnostic.goto_next()
+  end
+end
+map("n", "[d", function() diag_jump(-1) end, { desc = "Vorheriger Diagnostic" })
+map("n", "]d", function() diag_jump(1)  end, { desc = "Nächster Diagnostic" })
 map("n", "<leader>q",  vim.diagnostic.setloclist,     { desc = "Diagnostic-Liste" })
 
 -- Git (Lazygit)
