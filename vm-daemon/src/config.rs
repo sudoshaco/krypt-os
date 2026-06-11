@@ -43,6 +43,8 @@ pub enum ConfigError {
     DuplicateVmName(String),
     #[error("duplicate auth_sticks serial '{0}' — last [[auth_sticks]] block silently won before this check")]
     DuplicateStickSerial(String),
+    #[error("path field '{field}' for VM '{vm}' contains forbidden character (quote or newline): {value:?}")]
+    InvalidPath { vm: String, field: &'static str, value: String },
 }
 
 /// Vollständige Daemon-Konfiguration.
@@ -153,6 +155,18 @@ impl KryptConfig {
             if !seen.insert(vm.name.as_str()) {
                 return Err(ConfigError::DuplicateVmName(vm.name.clone()));
             }
+            // Pfade in kernel/ramdisk/root_disk gehen unescaped in die
+            // generierte xl-Config (siehe vm::write_xl_cfg). xl akzeptiert
+            // keine eingebetteten Quotes/Newlines — vorher würde ein gefakter
+            // daemon.toml-Eintrag wie kernel = "x\"" hier silently passieren
+            // und beim ersten VM-Start in xl-Parse-Fehlern enden.
+            check_path(&vm.name, "kernel", &vm.kernel)?;
+            if let Some(p) = vm.ramdisk.as_ref().and_then(|p| p.to_str()) {
+                check_path(&vm.name, "ramdisk", p)?;
+            }
+            if let Some(p) = vm.root_disk.as_ref().and_then(|p| p.to_str()) {
+                check_path(&vm.name, "root_disk", p)?;
+            }
         }
         let mut seen_sticks = std::collections::HashSet::with_capacity(self.auth_sticks.len());
         for stick in &self.auth_sticks {
@@ -198,6 +212,19 @@ fn is_valid_serial(s: &str) -> bool {
     !s.is_empty()
         && s.len() <= 64
         && s.bytes().all(|b| b.is_ascii_graphic())
+}
+
+/// Lehnt eingebettete `"` und `\n` ab — würden sonst die xl-Config-Generation
+/// in vm::write_xl_cfg zerschießen. Empty Strings sind ok (kein VM-Pfad gesetzt).
+fn check_path(vm: &str, field: &'static str, value: &str) -> Result<(), ConfigError> {
+    if value.contains('"') || value.contains('\n') {
+        return Err(ConfigError::InvalidPath {
+            vm: vm.to_owned(),
+            field,
+            value: value.to_owned(),
+        });
+    }
+    Ok(())
 }
 
 impl Default for DaemonConfig {
@@ -281,6 +308,34 @@ mod tests {
         match cfg.validate() {
             Err(ConfigError::DuplicateVmName(n)) => assert_eq!(n, "work"),
             other => panic!("expected DuplicateVmName, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn validate_rejects_kernel_with_quote() {
+        let mut bad = vm("work");
+        bad.kernel = "/boot/vmlinuz\"".into();
+        let cfg = KryptConfig { vms: vec![bad], ..Default::default() };
+        match cfg.validate() {
+            Err(ConfigError::InvalidPath { vm: v, field, .. }) => {
+                assert_eq!(v, "work");
+                assert_eq!(field, "kernel");
+            }
+            other => panic!("expected InvalidPath, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn validate_rejects_root_disk_with_newline() {
+        let mut bad = vm("work");
+        bad.root_disk = Some("/dev/vg0/work\nbad".into());
+        let cfg = KryptConfig { vms: vec![bad], ..Default::default() };
+        match cfg.validate() {
+            Err(ConfigError::InvalidPath { vm: v, field, .. }) => {
+                assert_eq!(v, "work");
+                assert_eq!(field, "root_disk");
+            }
+            other => panic!("expected InvalidPath, got {:?}", other),
         }
     }
 
