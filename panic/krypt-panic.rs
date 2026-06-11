@@ -38,8 +38,10 @@ fn panic_lock() {
 fn panic_suspend() {
     // Alle AppVMs einfrieren
     freeze_all_vms();
-    // System suspenden
-    let _ = fs::write("/sys/power/state", "disk");
+    // System suspenden — "mem" = Suspend-to-RAM (S3).
+    // "disk" wäre Hibernate (S4): schreibt RAM auf Swap, wo der LUKS-Key
+    // landen würde — genau das Gegenteil von dem was Panic-Suspend will.
+    let _ = fs::write("/sys/power/state", "mem");
     eprintln!("[krypt-panic] SUSPENDED");
 }
 
