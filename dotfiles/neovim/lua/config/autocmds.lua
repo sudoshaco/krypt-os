@@ -49,7 +49,7 @@ vim.api.nvim_create_autocmd("FileType", {
   callback = function() vim.opt_local.colorcolumn = "88" end,
 })
 
--- TOML: 4-Leerzeichen-Einrückung
+-- TOML: 2-Leerzeichen-Einrückung (Kompromiss zwischen Cargo.toml & daemon.toml-Lesbarkeit)
 vim.api.nvim_create_autocmd("FileType", {
   group = augroup("toml_indent"),
   pattern = "toml",
@@ -70,11 +70,12 @@ vim.api.nvim_create_autocmd("TermOpen", {
   end,
 })
 
--- Highlight bei Yank
+-- Highlight bei Yank — vim.highlight ist in nvim 0.11+ als vim.hl umbenannt
+-- worden, alte API gibt Deprecation-Warnings. Tabellen-Lookup ohne Crash auf 0.10.
 vim.api.nvim_create_autocmd("TextYankPost", {
   group = augroup("yank_highlight"),
   callback = function()
-    vim.highlight.on_yank({ timeout = 200 })
+    (vim.hl or vim.highlight).on_yank({ timeout = 200 })
   end,
 })
 
