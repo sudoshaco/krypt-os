@@ -238,6 +238,46 @@ if [[ -d "${GRUB_THEME_SRC}" ]]; then
     GRUB_THEME_DST="${PROFILE_DIR}/airootfs/boot/grub/themes/krypt-grub"
     mkdir -p "${GRUB_THEME_DST}"
     cp -r "${GRUB_THEME_SRC}/." "${GRUB_THEME_DST}/"
+
+    # ── PF2-Fonts generieren (known-issue #11) ──────────────────────────────
+    # GRUB versteht ausschließlich PF2-Fonts. theme.txt referenziert
+    # "JetBrainsMono Nerd Font Regular 14" etc. — ohne entsprechende PF2
+    # fällt GRUB auf den Default-Font (unicode.pf2) zurück und das Theme
+    # sieht generisch aus. grub-mkfont konvertiert TTF → PF2 mit dem Namen
+    # aus der TTF-Metadata, sodass die Referenz im Theme greift.
+    #
+    # TTF-Pfad variiert zwischen ttf-jetbrains-mono-nerd Versionen — wir
+    # probieren mehrere bekannte Pfade. Wenn keiner existiert ODER
+    # grub-mkfont nicht installiert ist, wird nur gewarnt (kein die).
+    if command -v grub-mkfont >/dev/null 2>&1; then
+        TTF_PATH=""
+        for candidate in \
+            "/usr/share/fonts/TTF/JetBrainsMonoNerdFont-Regular.ttf" \
+            "/usr/share/fonts/jetbrains-mono-nerd/JetBrainsMonoNerdFont-Regular.ttf" \
+            "/usr/share/fonts/jetbrainsmono-nerd/JetBrainsMonoNerdFont-Regular.ttf" \
+            "/usr/share/fonts/JetBrains-Mono/JetBrainsMonoNerdFont-Regular.ttf" \
+        ; do
+            [[ -f "$candidate" ]] && { TTF_PATH="$candidate"; break; }
+        done
+        if [[ -n "$TTF_PATH" ]]; then
+            # theme.txt nutzt Größen 10, 11, 13, 14 (Regular) + 14, 28 (Bold).
+            # PF2-Files heißen ${name}-${size}.pf2; GRUB matched per Name
+            # aus der TTF-Metadata + Größe in der theme.txt-Direktive.
+            for size in 10 11 13 14; do
+                grub-mkfont --size="${size}" \
+                    --output="${GRUB_THEME_DST}/jbm-${size}.pf2" \
+                    "$TTF_PATH" 2>/dev/null || warn "grub-mkfont size=${size} fehlgeschlagen"
+            done
+            ok "PF2-Fonts generiert (10/11/13/14pt aus ${TTF_PATH})"
+        else
+            warn "JetBrainsMono Nerd Font TTF nicht gefunden — GRUB-Theme fällt auf Default-Font zurück"
+            warn "  Installier: sudo pacman -S ttf-jetbrains-mono-nerd"
+        fi
+    else
+        warn "grub-mkfont nicht installiert — überspringe PF2-Font-Generation"
+        warn "  Installier: sudo pacman -S grub"
+    fi
+
     # GRUB-Config mit Theme
     mkdir -p "${PROFILE_DIR}/airootfs/etc/default"
     cat >> "${PROFILE_DIR}/airootfs/etc/default/grub" <<'GRUBCONF'

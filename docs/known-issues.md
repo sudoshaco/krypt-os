@@ -170,18 +170,26 @@ sudo krypt-stick --luks-dev /dev/sda2 add-backup --stick-dev /dev/sdc
 
 ## 11. GRUB — JetBrainsMono.pf2 Font nicht generiert
 
-**Status:** Fehlende Build-Step
+**Status:** ✅ Behoben — `build.sh` ruft `grub-mkfont` für 10/11/13/14pt auf
 
-**Problem:** Das GRUB-Theme (`dotfiles/grub/krypt-grub/theme.txt`) referenziert `JetBrainsMono.pf2`.
-Diese Datei wird nicht durch `build.sh` generiert. Ohne sie fällt GRUB auf den Standardfont zurück.
+**War:** Das GRUB-Theme (`dotfiles/grub/krypt-grub/theme.txt`) referenziert
+`JetBrainsMono Nerd Font Regular {10,11,13,14}`. Die PF2-Dateien wurden vom
+`build.sh` nicht generiert; GRUB fiel auf `unicode.pf2` zurück und das Theme
+sah generisch aus.
 
-**Fix:**
+**Fix:** Direkt nach dem `cp` des Theme-Verzeichnisses sucht `build.sh` jetzt
+nach dem JetBrainsMono Nerd TTF in vier üblichen Pfaden, dann ruft
+
 ```bash
-grub-mkfont --size=24 --output=dotfiles/grub/krypt-grub/JetBrainsMono.pf2 \
-  /usr/share/fonts/JetBrains-Mono/JetBrainsMonoNerdFont-Regular.ttf
+grub-mkfont --size=${size} --output=${GRUB_THEME_DST}/jbm-${size}.pf2 <ttf>
 ```
 
-Dieser Schritt muss in `build.sh` ergänzt werden (braucht `grub` und den Font auf dem Build-System).
+für jede in `theme.txt` referenzierte Größe (10, 11, 13, 14) auf. Wenn
+`grub-mkfont` oder das TTF fehlen, wird gewarnt aber NICHT abgebrochen —
+GRUB nutzt dann weiter den Default-Font (gleicher Status wie vorher).
+
+**Voraussetzung im Build-System:** `pacman -S grub ttf-jetbrains-mono-nerd`.
+In der CI ist beides Teil des `archlinux:latest` Container-Setups.
 
 ---
 
@@ -312,7 +320,7 @@ Phase 13+14 Status:
 | gui-protocol Xen Grant-Table | Nein (Stub reicht) | Phase 15 |
 | Input-Forwarding fehlt | Nein (Demo) | Phase 15 |
 | Inter-VM Clipboard fehlt | Nein (Deny=default) | Phase 15 |
-| GRUB PF2-Font fehlt | Nein (Fallback-Font) | Vor v0.1.0 |
+| GRUB PF2-Font fehlt | Nein (Fallback-Font) | ✅ Behoben: build.sh grub-mkfont 10/11/13/14pt |
 | Plymouth Script-Syntax unvalidiert | Nein (kein Boot-Blocker) | Vor v0.1.0 |
 | IOMMU Voraussetzung | Nein (Docs reichen) | Docs |
 | Hyprland col.shadow Syntax | Nein (graceful) | Patch |
