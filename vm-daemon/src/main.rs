@@ -362,7 +362,12 @@ async fn trigger_panic(level: config::PanicLevel) {
         Err(e) => tracing::warn!("krypt-panic failed to spawn ({e}) — falling back to inline panic"),
     }
 
-    // Fallback path — same systemctl/loginctl semantics as before
+    // Fallback path — VM-Freeze inline + systemctl/loginctl. Vorher fehlte
+    // hier der Freeze, weshalb der Fallback bei Suspend/Nuke laufende AppVMs
+    // im Speicher hinterließ. Wir wollen einen minimalen aber funktional
+    // analogen Pfad zu krypt-panic — ohne dessen libc::reboot-Hammer.
+    freeze_running_appvms().await;
+
     let result = match level {
         config::PanicLevel::Lock => {
             tracing::warn!("PANIC fallback: locking all sessions (loginctl lock-sessions)");
@@ -383,4 +388,47 @@ async fn trigger_panic(level: config::PanicLevel) {
     if let Err(e) = result {
         tracing::error!("PANIC ACTION FAILED: {e} — Auth-Stick wurde abgezogen, System bleibt aktiv!");
     }
+}
+
+/// Iteriert `xl list` und ruft `xl pause <name>` für jede Domain außer Domain-0.
+///
+/// Best-effort: einzelne pause-Fehler werden geloggt, blockieren aber nicht
+/// den nachfolgenden Suspend/Poweroff. Wird im Fallback-Pfad von
+/// `trigger_panic` aufgerufen, also wenn /usr/bin/krypt-panic nicht
+/// verfügbar war. krypt-panic macht das gleiche selbst.
+async fn freeze_running_appvms() {
+    use tokio::process::Command;
+
+    let listing = match Command::new("xl").arg("list").output().await {
+        Ok(o) if o.status.success() => o.stdout,
+        Ok(o) => {
+            tracing::warn!(
+                "fallback freeze: xl list exit={:?} stderr={}",
+                o.status,
+                String::from_utf8_lossy(&o.stderr).trim()
+            );
+            return;
+        }
+        Err(e) => {
+            tracing::warn!("fallback freeze: xl list spawn failed: {e}");
+            return;
+        }
+    };
+
+    let text = String::from_utf8_lossy(&listing);
+    let mut paused = 0;
+    // Erste Zeile ist Header ("Name ID Mem VCPUs ..."), skip()n
+    for line in text.lines().skip(1) {
+        let mut parts = line.split_whitespace();
+        let Some(name) = parts.next() else { continue };
+        if name == "Domain-0" {
+            continue;
+        }
+        match Command::new("xl").args(["pause", name]).status().await {
+            Ok(s) if s.success() => paused += 1,
+            Ok(s) => tracing::warn!("fallback freeze: xl pause {name} exit={s}"),
+            Err(e) => tracing::warn!("fallback freeze: xl pause {name} spawn failed: {e}"),
+        }
+    }
+    tracing::warn!("fallback freeze: paused {paused} AppVM(s) before system action");
 }
