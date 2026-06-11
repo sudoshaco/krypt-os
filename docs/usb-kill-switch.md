@@ -120,38 +120,60 @@ LUKS2 unterstützt bis zu 32 Key-Slots. Jeder Backup-Stick bekommt einen eigenen
 
 ### Backup-Stick erstellen (im laufenden System)
 
-```bash
-krypt-stick --add-backup
-```
-
-```
-Ausgabe:
-  [krypt] Stecke den neuen Backup-Stick ein...
-  [krypt] Stick erkannt: Samsung 64GB (UUID: a3f2...)
-  [krypt] Generiere Schlüsselmaterial...
-  [krypt] Schreibe .krypt Datei...
-  [krypt] Registriere LUKS2 Key-Slot 2...
-  [krypt] Backup-Stick bereit. Slot: 2/32
-  [krypt] Bewahre ihn getrennt vom Primär-Stick auf.
-```
-
-### Backup-Stick widerrufen
+Voraussetzung: das LUKS-Mapping muss offen sein (`/dev/mapper/krypt-root`).
+Der `--stick-dev` ist das Block-Device des neuen Backup-Sticks, nicht des
+Primärsticks.
 
 ```bash
-krypt-stick --revoke --slot 2
+sudo krypt-stick \
+    --luks-dev /dev/mapper/krypt-root \
+    add-backup --stick-dev /dev/sdY
 ```
 
-Sofortige Wirkung. Der widerrufene Stick kann das System nie wieder booten.
+Beispiel-Ausgabe (krypt-stick/src/backup.rs):
 
-### Stick-Übersicht
+```
+Adding backup stick /dev/sdY → LUKS device /dev/mapper/krypt-root
+Key added to slot 2 on /dev/mapper/krypt-root
+
+Backup stick added — LUKS slot 2
+Add to /etc/krypt/daemon.toml:
+  [[auth_sticks]]
+  serial = "<udevadm info --query=property --name=/dev/sdY | grep ID_SERIAL_SHORT>"
+  luks_slot = 2
+```
+
+`krypt-stick` ergänzt den daemon.toml-Block NICHT selbst — der Output
+zeigt dir was du anhängen musst.
+
+### Backup-Stick widerrufen (Slot löschen)
 
 ```bash
-krypt-stick --list
-
-Slot 0  [PRIMÄR]   Kingston 32GB    UUID: 9a1b...  Hinzugefügt: 2025-05-01
-Slot 1  [BACKUP]   Samsung 64GB     UUID: a3f2...  Hinzugefügt: 2025-05-13
-Slot 2  [BACKUP]   SanDisk 16GB     UUID: c8e4...  Hinzugefügt: 2025-05-13
+sudo krypt-stick \
+    --luks-dev /dev/mapper/krypt-root \
+    revoke 2
 ```
+
+Sofortige Wirkung — `cryptsetup luksKillSlot` fragt zur Bestätigung nach
+einer ANDEREN gültigen Passphrase. Der widerrufene Stick kann das System
+nie wieder booten.
+
+### Stick-Übersicht (aktive LUKS2-Slots)
+
+```bash
+sudo krypt-stick --luks-dev /dev/mapper/krypt-root list
+```
+
+```
+LUKS2 device: /dev/mapper/krypt-root
+  Slot 0: ENABLED
+  Slot 1: ENABLED
+  Slot 2: ENABLED
+```
+
+LUKS2 selbst speichert keine Stick-Metadata (Modell, Hinzufügedatum etc.) —
+die Zuordnung Slot → Stick steht ausschließlich in `daemon.toml`. Wer eine
+Mapping-Notiz braucht: dort kommentieren.
 
 ---
 
@@ -166,8 +188,13 @@ Das ist kein Bug. Das ist Krypt.
 
 Wenn du einen Backup-Stick hast:
 1. Backup-Stick einlegen → System bootet
-2. Verlorenen Slot sofort widerrufen: `krypt-stick --revoke --slot 0`
-3. Neuen Primär-Stick erstellen: `krypt-stick --add-backup --promote`
+2. LUKS-Mapping öffnen falls nicht offen:
+   `sudo cryptsetup open /dev/sda2 krypt-root` (Backup-Stick liefert die Key-Datei)
+3. Verlorenen Slot widerrufen:
+   `sudo krypt-stick --luks-dev /dev/mapper/krypt-root revoke 0`
+4. Neuen Primär-Stick einrichten:
+   `sudo krypt-stick --luks-dev /dev/mapper/krypt-root add-backup --stick-dev /dev/sdZ`
+5. `daemon.toml` `[[auth_sticks]]` Einträge entsprechend aktualisieren (alten Stick raus, neuen rein)
 
 ---
 
