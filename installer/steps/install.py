@@ -227,7 +227,12 @@ class InstallScreen(Screen):
                      f"install -Dm644 /etc/systemd/system/{unit} "
                      f"/mnt/etc/systemd/system/{unit} || true"])
 
-            run(["arch-chroot", "/mnt", "systemctl", "enable", "krypt-daemon"])
+            # krypt-boot-agent kopierte Datei war hier, wurde aber nie via
+            # systemctl enable aktiviert. Folge auf dem installierten System:
+            # nach jedem Reboot blieb /run/krypt/boot-stick-serial leer und
+            # nachgelagerte Diagnose-Tools fanden den Boot-Stick nicht.
+            for unit in ("krypt-daemon", "krypt-boot-agent"):
+                run(["arch-chroot", "/mnt", "systemctl", "enable", unit])
 
             # krypt-boot-agent.sh
             run(["bash", "-c",
