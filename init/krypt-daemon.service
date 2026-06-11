@@ -19,7 +19,7 @@ RestartSec=5s
 # Nie neu starten wenn absichtlich gestoppt (SIGTERM/SIGINT)
 RestartPreventExitStatus=0
 
-# /run/krypt/ anlegen (IPC-Socket, boot-stick-uuid)
+# /run/krypt/ anlegen (IPC-Socket, boot-stick-serial)
 RuntimeDirectory=krypt
 RuntimeDirectoryMode=0700
 
@@ -31,12 +31,18 @@ ConfigurationDirectoryMode=0700
 # NoNewPrivileges=yes ist nicht möglich: xl nutzt setuid-Bits
 ProtectSystem=strict
 ProtectHome=yes
-ReadWritePaths=/run/krypt /etc/krypt /run/krypt
+# Daemon liest /etc/krypt/daemon.toml read-only — keine Write-Notwendigkeit.
+# RuntimeDirectory= erzeugt /run/krypt; nur dort wird der IPC-Socket gebunden
+# und die boot-stick-serial Datei abgelegt. ReadWritePaths bewusst minimal.
+ReadWritePaths=/run/krypt
 PrivateTmp=yes
-PrivateDevices=no  # xl braucht /dev/xen
+# xl braucht /dev/xen — Inline-Kommentare nach "=value" parst systemd NICHT
+# als Kommentar, sondern als Teil des Werts → "Invalid argument".
+PrivateDevices=no
 ProtectKernelTunables=yes
 ProtectControlGroups=yes
-RestrictSUIDSGID=no  # xl braucht SUID
+# xl-Binaries sind setuid root — RestrictSUIDSGID=yes würde xl create blockieren.
+RestrictSUIDSGID=no
 LockPersonality=yes
 RestrictRealtime=yes
 
