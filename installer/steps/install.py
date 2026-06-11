@@ -209,11 +209,16 @@ class InstallScreen(Screen):
                     "    nicht funktionieren. Siehe docs/post-install.md für manuelle Installation.")
 
             # ── 8. Krypt-Binaries + Systemd-Units ────────────────────────────
+            # Ziel ist /mnt/usr/bin/, NICHT /usr/local/bin/ — die systemd-Unit
+            # in init/krypt-daemon.service hat ExecStart=/usr/bin/krypt-daemon
+            # hardcoded. Würden wir nach /usr/local/bin/ kopieren, würde der
+            # Service nach dem ersten Reboot mit "no such file or directory"
+            # scheitern und der USB-Kill-Switch nie aktiv werden.
             phase("Krypt-Daemon installieren", 4)
-            for binary in ("krypt-daemon", "krypt-stick", "krypt-gui"):
+            for binary in ("krypt-daemon", "krypt-stick", "krypt-gui", "krypt-panic"):
                 src = f"/usr/bin/{binary}"
                 run(["bash", "-c",
-                     f"[ -f {src} ] && install -Dm755 {src} /mnt/usr/local/bin/{binary} || true"])
+                     f"[ -f {src} ] && install -Dm755 {src} /mnt/usr/bin/{binary} || true"])
 
             # Systemd-Units kopieren (aus Live-ISO airootfs)
             for unit in ("krypt-daemon.service", "krypt-boot-agent.service"):

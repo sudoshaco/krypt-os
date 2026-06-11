@@ -30,9 +30,14 @@ def _list_removable_devices() -> list[str]:
 
 
 def _find_krypt_stick_binary() -> str | None:
-    """Sucht die krypt-stick Binary in bekannten Pfaden."""
+    """Sucht die krypt-stick Binary in bekannten Pfaden.
+
+    Reihenfolge: erst das frisch installierte System (/mnt/usr/bin/), dann
+    Live-ISO (/usr/bin/), dann /usr/local/bin/ als Legacy-Fallback für
+    Dev-Builds die nicht über build/build.sh laufen.
+    """
     candidates = [
-        "/mnt/usr/local/bin/krypt-stick",
+        "/mnt/usr/bin/krypt-stick",
         "/usr/bin/krypt-stick",
         "/usr/local/bin/krypt-stick",
     ]
