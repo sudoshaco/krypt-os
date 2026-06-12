@@ -451,7 +451,7 @@ WAYLAND_DISPLAY=wayland-1 krypt-gui &
 | krypt-gui startet ohne Fehler | ⬜ | WAYLAND_DISPLAY gesetzt? |
 | Wayland-Verbindung wird hergestellt | ⬜ | |
 | 3 Fenster mit Trust-Farben erscheinen | ⬜ | Stub-Farben |
-| Fenster reagieren auf Hyprland windowrulev2 | ⬜ | Border-Farben |
+| Fenster reagieren auf Hyprland windowrule | ⬜ | Border-Farben |
 | `SIGTERM` beendet sauber | ⬜ | Kein Hang |
 
 ---
@@ -498,4 +498,4 @@ nvim
 | Alle AppVM-Disk-Images verschlüsselt | ⬜ | Pro VM: `cryptsetup status /dev/mapper/<vm>-root` |
 | `krypt-daemon` läuft | ⬜ | `systemctl is-active krypt-daemon` |
 | Audit-Log konfiguriert | ⬜ | Zukünftig: krypt-daemon Audit-Modul |
-| Hyprland windowrulev2 Trust-Borders aktiv | ⬜ | Roter Rand für red-VMs? |
+| Hyprland windowrule Trust-Borders aktiv | ⬜ | Roter Rand für red-VMs? |

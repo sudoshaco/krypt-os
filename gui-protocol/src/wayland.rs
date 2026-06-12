@@ -1,6 +1,6 @@
 // wayland.rs — Wayland-Surface-Management für AppVM-Fenster (Phase 10)
 //
-// Transport: xdg_toplevel — Hyprland windowrulev2 matcht Title + app_id (ADR-011).
+// Transport: xdg_toplevel — Hyprland windowrule matcht Title + app_id (ADR-011).
 // Pixel-Buffer: wl_shm_pool über anonyme Datei in /dev/shm.
 //
 // Framing: attach → damage_buffer → commit → roundtrip (flush + Events).
@@ -84,7 +84,7 @@ pub struct SurfaceConfig {
 }
 
 impl SurfaceConfig {
-    /// "[<trust>] <vm-name>: <title>" — Hyprland windowrulev2 matcht dieses Format.
+    /// "[<trust>] <vm-name>: <title>" — Hyprland windowrule matcht dieses Format.
     pub fn krypt_title(&self) -> String {
         format!("[{}] {}: {}", self.trust.as_tag(), self.vm_name, self.title)
     }

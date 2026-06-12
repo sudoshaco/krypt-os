@@ -352,17 +352,18 @@ xdg_toplevel für alle AppVM-Fenster.
 ### Begründung
 
 **Kompatibilität mit bestehenden Hyprland-Regeln (Hauptgrund):**
-Hyprlands `windowrulev2` matcht auf `title` und `initialClass`.
+Hyprlands `windowrule` (Hyprland 0.46+ vereinheitlichte Syntax, vorher
+`windowrulev2`) matcht auf `title` und `initialClass`.
 Wir setzen:
 - `set_title("[<trust>] <vm-name>: <original-title>")` — Trust-Präfix + VM-Name
 - `set_app_id("krypt.<vm-name>")` — VM-spezifischer App-Identifier
 
-Das bedeutet alle windowrulev2-Regeln aus `hyprland.conf` greifen ohne
+Das bedeutet alle windowrule-Regeln aus `hyprland.conf` greifen ohne
 Änderungen am Compositor:
 ```
-windowrulev2 = bordercolor rgba(ff5555ff), title:^\[red\]
-windowrulev2 = workspace 1, title:^\[red\]
-windowrulev2 = noblur, title:^\[(red|orange)\]
+windowrule   = bordercolor rgba(ff5555ff), title:^\[red\]
+windowrule   = workspace 1, title:^\[red\]
+windowrule   = noblur, title:^\[(red|orange)\]
 ```
 Null Compositor-Modifikation nötig — das ist ein erheblicher Vorteil.
 

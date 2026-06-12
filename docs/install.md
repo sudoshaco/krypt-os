@@ -444,7 +444,7 @@ journalctl -f -u krypt-daemon
 - [ ] Dom0-Speicher begrenzt (`xl info | grep free_memory` < 4096 MB)
 - [ ] LUKS-Header gesichert (`cryptsetup luksHeaderBackup /dev/sda2 --header-backup-file luks-header.bak`)
 - [ ] USB Kill-Switch verifiziert
-- [ ] Hyprland windowrulev2-Regeln aktiv (Vertrauensindikatoren in Titelleiste)
+- [ ] Hyprland windowrule-Regeln aktiv (Vertrauensindikatoren in Titelleiste)
 - [ ] `cargo test` und `cargo clippy` fehlerfrei
 
 ---
