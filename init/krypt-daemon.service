@@ -12,7 +12,11 @@ User=root
 Group=root
 
 ExecStart=/usr/bin/krypt-daemon
-ExecReload=/bin/kill -HUP $MAINPID
+# Kein ExecReload: krypt-daemon main.rs verarbeitet aktuell nur SIGTERM/SIGINT.
+# Ein "kill -HUP $MAINPID" hätte den Daemon mit dem Default-Handler getötet —
+# Restart=on-failure hätte ihn dann hochgefahren (mit kurzem Downtime), was
+# nach außen wie reload aussah, in Wirklichkeit aber ein Restart war. Bis
+# echte SIGHUP-Reload-Logik existiert: `systemctl restart krypt-daemon`.
 
 Restart=on-failure
 RestartSec=5s
