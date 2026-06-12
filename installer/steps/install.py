@@ -263,6 +263,16 @@ class InstallScreen(Screen):
                  "install -Dm755 /usr/local/bin/krypt-vm-open "
                  "/mnt/usr/local/bin/krypt-vm-open || true"])
 
+            # Branding / Screensaver-Skripte (KRYPT-Logo via tte in foot)
+            # Werden vom build.sh nach /usr/local/bin/ gepackt; ohne diesen
+            # Copy-Step landen sie nicht im installierten System und das
+            # Keybind SUPER+SHIFT+S aus hyprland.conf liefe ins Leere.
+            for bin in ("krypt-screensaver", "krypt-launch-screensaver"):
+                run(["bash", "-c",
+                     f"[ -f /usr/local/bin/{bin} ] && "
+                     f"install -Dm755 /usr/local/bin/{bin} "
+                     f"/mnt/usr/local/bin/{bin} || true"])
+
             # ── 9. System konfigurieren ───────────────────────────────────────
             phase("System konfigurieren", 5)
 

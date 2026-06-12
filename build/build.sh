@@ -340,7 +340,20 @@ fi
     mkdir -p "${SKEL}/.config/krypt"
     cp -rT "${REPO_ROOT}/dotfiles/theme" "${SKEL}/.config/krypt"
 }
-ok "Dotfiles eingebunden (nvim, hyprland, waybar, rofi, foot)"
+# Branding (Screensaver + ASCII-Logo)
+# - Logo nach /etc/skel/.config/krypt/branding/ damit neue User es haben
+# - Skripte nach /usr/local/bin damit Hyprland sie ohne absoluten Pfad
+#   per `exec` aufrufen kann (siehe Keybind in hyprland.conf).
+if [[ -d "${REPO_ROOT}/dotfiles/branding" ]]; then
+    mkdir -p "${SKEL}/.config/krypt/branding"
+    install -Dm644 "${REPO_ROOT}/dotfiles/branding/screensaver.txt" \
+        "${SKEL}/.config/krypt/branding/screensaver.txt"
+    install -Dm755 "${REPO_ROOT}/dotfiles/branding/krypt-screensaver" \
+        "${PROFILE_DIR}/airootfs/usr/local/bin/krypt-screensaver"
+    install -Dm755 "${REPO_ROOT}/dotfiles/branding/krypt-launch-screensaver" \
+        "${PROFILE_DIR}/airootfs/usr/local/bin/krypt-launch-screensaver"
+fi
+ok "Dotfiles eingebunden (nvim, hyprland, waybar, rofi, foot, branding)"
 
 # ── Daemon-Config ─────────────────────────────────────────────────────────────
 # daemon.toml ist bereits über airootfs-Copy oben eingebunden.

@@ -121,10 +121,20 @@ do_link "${SCRIPT_DIR}/rofi/krypt-launcher.sh"  "${HOME}/.config/rofi/krypt-laun
 # ── Foot (Terminal) ─────────────────────────────────────────────────────────
 info "Foot"
 do_link "${SCRIPT_DIR}/foot/foot.ini"           "${HOME}/.config/foot/foot.ini"
+do_link "${SCRIPT_DIR}/foot/screensaver.ini"    "${HOME}/.config/foot/screensaver.ini"
 
 # ── Krypt Theme ─────────────────────────────────────────────────────────────
 info "Theme"
 do_link "${SCRIPT_DIR}/theme/colors.conf"       "${HOME}/.config/krypt/colors.conf"
+
+# ── Branding / Screensaver ──────────────────────────────────────────────────
+# ASCII-Logo wird per Symlink unter ~/.config/krypt/branding/ erreichbar
+# gemacht. Die zwei Skripte landen in ~/.local/bin (muss in $PATH sein) damit
+# Hyprland sie via exec ohne absolute Pfade aufrufen kann.
+info "Branding / Screensaver"
+do_link "${SCRIPT_DIR}/branding/screensaver.txt"          "${HOME}/.config/krypt/branding/screensaver.txt"
+do_link "${SCRIPT_DIR}/branding/krypt-screensaver"        "${HOME}/.local/bin/krypt-screensaver"
+do_link "${SCRIPT_DIR}/branding/krypt-launch-screensaver" "${HOME}/.local/bin/krypt-launch-screensaver"
 
 # ── Neovim ──────────────────────────────────────────────────────────────────
 info "Neovim"

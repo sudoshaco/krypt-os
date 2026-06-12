@@ -1,0 +1,46 @@
+#!/bin/bash
+# krypt-launch-screensaver — startet den KRYPT-Screensaver in foot.
+#
+# - Prüft ob bereits eine Screensaver-Instanz läuft (no-op falls ja)
+# - Wechselt auf jeden Hyprland-Monitor und startet dort eine eigene
+#   foot-Instanz mit window-class `org.krypt.screensaver`
+# - Hyprland window-rule (siehe hyprland.conf) macht das Fenster fullscreen
+#   und ohne Border, damit der Effekt bildschirmfüllend läuft.
+#
+# Aufruf:
+#   krypt-launch-screensaver           # nur starten wenn nicht disabled
+#   krypt-launch-screensaver force     # ignoriert ~/.config/krypt/screensaver-off
+
+set -u
+
+# Abhängigkeiten
+for bin in foot hyprctl jq; do
+    if ! command -v "$bin" >/dev/null 2>&1; then
+        notify-send -u low "Screensaver braucht '$bin'" 2>/dev/null || true
+        exit 1
+    fi
+done
+
+# Bereits laufend? → nicht doppelt starten
+if pgrep -f "org.krypt.screensaver" >/dev/null 2>&1; then
+    exit 0
+fi
+
+# Per-User Disable-Flag (touch ~/.config/krypt/screensaver-off)
+if [[ -f "${HOME}/.config/krypt/screensaver-off" && "${1:-}" != "force" ]]; then
+    exit 1
+fi
+
+# Fokus merken, danach wiederherstellen
+focused=$(hyprctl monitors -j | jq -r '.[] | select(.focused==true) | .name' 2>/dev/null || true)
+
+for m in $(hyprctl monitors -j | jq -r '.[].name'); do
+    hyprctl dispatch focusmonitor "$m" >/dev/null 2>&1 || true
+    hyprctl dispatch exec -- \
+        foot --app-id=org.krypt.screensaver \
+             -c "${HOME}/.config/foot/screensaver.ini" \
+             -e krypt-screensaver \
+             >/dev/null 2>&1 || true
+done
+
+[[ -n "$focused" ]] && hyprctl dispatch focusmonitor "$focused" >/dev/null 2>&1 || true

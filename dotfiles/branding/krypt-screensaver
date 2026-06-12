@@ -1,0 +1,69 @@
+#!/bin/bash
+# krypt-screensaver — Krypt OS Screensaver-Runner
+#
+# Rendert das KRYPT-ASCII-Logo mit zufälligen TTE-Effekten (terminaltexteffects).
+# Wird vom krypt-launch-screensaver Wrapper in einer foot-Instanz mit
+# der Window-Class `org.krypt.screensaver` gestartet.
+#
+# Beenden: jede Tastatur-/Maus-Eingabe ODER Verlust des Fokus auf die
+# Screensaver-Klasse (Switch zu anderem Fenster).
+#
+# Abhängigkeiten:
+#   - tte   (pip install terminaltexteffects, oder via System-Paket falls vorhanden)
+#   - hyprctl + jq für Fokus-Erkennung
+#
+# Setzt voraus: ~/.config/krypt/branding/screensaver.txt existiert.
+
+set -u
+
+ART_FILE="${HOME}/.config/krypt/branding/screensaver.txt"
+
+if ! command -v tte >/dev/null 2>&1; then
+    echo "krypt-screensaver: 'tte' nicht installiert." >&2
+    echo "   pip install --user terminaltexteffects" >&2
+    sleep 3
+    exit 1
+fi
+
+if [[ ! -f "$ART_FILE" ]]; then
+    echo "krypt-screensaver: Logo-Datei fehlt: $ART_FILE" >&2
+    sleep 3
+    exit 1
+fi
+
+screensaver_in_focus() {
+    hyprctl activewindow -j 2>/dev/null \
+        | jq -e '.class == "org.krypt.screensaver"' >/dev/null 2>&1
+}
+
+exit_screensaver() {
+    hyprctl keyword cursor:invisible false &>/dev/null || true
+    pkill -x tte 2>/dev/null
+    pkill -f org.krypt.screensaver 2>/dev/null
+    exit 0
+}
+
+trap exit_screensaver SIGINT SIGTERM SIGHUP SIGQUIT
+
+# Hintergrund auf reines Schwarz (OSC 11), Cursor verstecken
+printf '\033]11;rgb:00/00/00\007'
+hyprctl keyword cursor:invisible true &>/dev/null || true
+
+tty=$(tty 2>/dev/null || true)
+
+while true; do
+    tte -i "$ART_FILE" \
+        --frame-rate 120 \
+        --canvas-width 0 --canvas-height 0 \
+        --reuse-canvas \
+        --anchor-canvas c --anchor-text c \
+        --random-effect \
+        --no-eol --no-restore-cursor &
+
+    # Beenden, sobald Input oder Fokus-Verlust auftritt
+    while pgrep -t "${tty#/dev/}" -x tte >/dev/null 2>&1; do
+        if read -n1 -t 1 || ! screensaver_in_focus; then
+            exit_screensaver
+        fi
+    done
+done

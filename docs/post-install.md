@@ -148,6 +148,33 @@ einfrieren + Suspend/Lock/Poweroff auslösen.
 
 ---
 
+## 7. KRYPT-Screensaver aktivieren (optional)
+
+Der Screensaver rendert das KRYPT-Logo mit zufälligen `tte`-Effekten in einer
+foot-Vollbild-Instanz. Auslösen via `SUPER+SHIFT+S` (siehe `hyprland.conf`).
+
+`tte` (terminaltexteffects) liegt **nicht** in den offiziellen Arch-Repos und
+ist über das Krypt-Pacman-Repo oder pip nachinstallierbar:
+
+```bash
+# Variante A — pip (kein Root, isoliert pro User)
+pip install --user terminaltexteffects
+
+# Variante B — via Krypt-Repo (siehe Abschnitt 1, Option A)
+sudo pacman -S python-terminaltexteffects
+```
+
+Test:
+```bash
+krypt-launch-screensaver force
+```
+
+Beenden: beliebige Tastatur-/Maus-Eingabe.
+
+Permanent deaktivieren: `touch ~/.config/krypt/screensaver-off`
+
+---
+
 ## Weitere Referenzen
 
 - `docs/install.md` — komplette Installations-Anleitung
