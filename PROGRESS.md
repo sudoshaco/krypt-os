@@ -2,6 +2,52 @@
 
 ---
 
+## 2026-06-12 — Hardening-Session: Screensaver, Idle-Pipeline, 8× Bug-Fixes
+
+### Erledigt
+
+**KRYPT-Screensaver (neu — analog Omarchy, mit eigenem Logo):**
+- `dotfiles/branding/screensaver.txt` — KRYPT-Logo in BIG-Font (8 Zeilen, ~60 Spalten)
+- `dotfiles/branding/krypt-screensaver` — Runner mit `tte` + Fokus-Erkennung über `hyprctl activewindow`
+- `dotfiles/branding/krypt-launch-screensaver` — startet pro Monitor eine foot-Instanz mit `--app-id=org.krypt.screensaver`
+- `dotfiles/foot/screensaver.ini` — eigene foot-Conf (size=18, schwarz, pad=0)
+- `dotfiles/hyprland/hyprland.conf` — Keybind `SUPER+SHIFT+S` + window rules (fullscreen, noborder, noanim, noblur, pin) für `class:^(org.krypt.screensaver)$`
+- Disable-Flag: `touch ~/.config/krypt/screensaver-off`
+
+**Idle-Pipeline geschlossen (Real-Bug — Lücke seit ISO #1):**
+- packages.x86_64 lieferte hypridle+hyprlock von Anfang an aus, aber `hypridle.conf` existierte nie, hyprlock.conf war nicht im `/etc/skel`, und `exec-once = hypridle` fehlte in hyprland.conf.
+- Konsequenz: keine automatische Sperre nach Idle, kein DPMS-off, Bildschirm blieb stundenlang offen.
+- Neue `dotfiles/hypridle/hypridle.conf`: 120s→Screensaver, 150s→hyprlock, 300s→DPMS off.
+- build.sh kopiert jetzt hyprlock + hypridle Configs in `/etc/skel/.config/hypr/`.
+
+**Bug-Fixes (verifiziert + atomare Commits):**
+1. `installer/steps/{install,usb}.py` — `Button.set(disabled=False)` existiert nicht in Textual; alle 5 Callsites haben im Worker-Thread still AttributeError geworfen. „Weiter →"-Button blieb nach erfolgreicher Installation deaktiviert. Fix: `call_from_thread(setattr, btn, "disabled", False)`.
+2. `krypt-stick/src/{create,backup}.rs` — Key-Material lag kurzfristig unter `/tmp/.krypt-{setup,backup}-key` (0600 root). Ein Crash zwischen `write_all` und `remove_file` hat den Schlüssel persistent zurückgelassen. Neuer `luks::add_key_from_bytes()` pipet das Material direkt per stdin an `cryptsetup luksAddKey -`.
+3. `panic/src/main.rs` — `wipe_sensitive_memory()` war ein Stub. Macht jetzt best-effort: `drop_caches`, `swapoff -a`, `libc::sync()`. Cold-Boot-Wipe via kexec bleibt Phase 5.
+4. `initramfs/krypt-boot-agent.sh` — `wait_for_socket`-Return wurde ignoriert (Timeout nur im Journal, ohne Hinweis dass weitergelaufen wird). Jetzt explizit geloggt.
+5. `installer/steps/install.py` — `locale.gen >> 'en_US.UTF-8 UTF-8'` war nicht idempotent (Duplikate bei Re-Run). Jetzt `grep -qxF || echo`.
+6. `build/test-qemu.sh` — `/tmp/krypt-ovmf-vars.fd` war fester Pfad; zwei parallele Test-Runs clobberten sich UEFI-State. Jetzt `mktemp` + EXIT-Trap.
+7. `build/build.sh` — GRUB-PF2-Generator hat nur Regular generiert; theme.txt nutzte Bold 14/28 → fiel still auf `unicode.pf2` zurück. Jetzt Regular + Bold getrennt, korrekte Größen.
+
+### Geänderte Dateien (Repo-weit)
+```
+build/build.sh                          (GRUB Bold-Fonts + branding + hypridle/hyprlock skel)
+build/test-qemu.sh                      (mktemp UEFI VARS)
+docs/post-install.md                    (Screensaver-Abschnitt)
+dotfiles/branding/                      (NEU — screensaver.txt + 2 Skripte)
+dotfiles/foot/screensaver.ini           (NEU)
+dotfiles/hypridle/hypridle.conf         (NEU)
+dotfiles/hyprland/hyprland.conf         (exec-once hypridle + Keybind + window rules)
+dotfiles/install.sh                     (Hypridle + Branding-Sektion)
+initramfs/krypt-boot-agent.sh           (wait_for_socket-Logging)
+installer/steps/install.py              (Button-Fix + locale.gen + Screensaver-Copy)
+installer/steps/usb.py                  (Button-Fix × 4)
+krypt-stick/src/{backup,create,luks}.rs (stdin-luksAddKey statt /tmp-Keyfile)
+panic/src/main.rs                       (echtes wipe_sensitive_memory)
+```
+
+---
+
 ## 2026-05-13 — Phase 13: AppVM Disk-Images, dom0 Isolation, mkinitcpio Fix, ISO-Vollständigkeit
 
 ### Erledigt

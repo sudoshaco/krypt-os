@@ -170,23 +170,27 @@ sudo krypt-stick --luks-dev /dev/sda2 add-backup --stick-dev /dev/sdc
 
 ## 11. GRUB — JetBrainsMono.pf2 Font nicht generiert
 
-**Status:** ✅ Behoben — `build.sh` ruft `grub-mkfont` für 10/11/13/14pt auf
+**Status:** ✅ Behoben — `build.sh` generiert Regular + Bold PF2 separat
 
-**War:** Das GRUB-Theme (`dotfiles/grub/krypt-grub/theme.txt`) referenziert
-`JetBrainsMono Nerd Font Regular {10,11,13,14}`. Die PF2-Dateien wurden vom
-`build.sh` nicht generiert; GRUB fiel auf `unicode.pf2` zurück und das Theme
-sah generisch aus.
+**War (Iteration 1):** Das GRUB-Theme (`dotfiles/grub/krypt-grub/theme.txt`)
+referenziert `JetBrainsMono Nerd Font Regular {10,11,13,14}`. PF2-Dateien
+wurden vom `build.sh` nicht generiert; GRUB fiel auf `unicode.pf2` zurück.
 
-**Fix:** Direkt nach dem `cp` des Theme-Verzeichnisses sucht `build.sh` jetzt
-nach dem JetBrainsMono Nerd TTF in vier üblichen Pfaden, dann ruft
+**War (Iteration 2):** Erste Fix-Version hat NUR die Regular-TTF konvertiert.
+theme.txt nutzt aber zusätzlich `Bold 14` (selected_item_font) und `Bold 28`
+(KRYPT OS Title) — diese Strings hatten weiterhin keinen passenden PF2 und
+fielen still auf den Default-Font (≈12pt Regular) zurück. Das Boot-Menü-
+Layout (`item_height = 38`) wirkte dadurch verschoben.
+
+**Fix (final):** build.sh löst Regular- und Bold-TTF separat auf und ruft
 
 ```bash
-grub-mkfont --size=${size} --output=${GRUB_THEME_DST}/jbm-${size}.pf2 <ttf>
+grub-mkfont --size=${size} --output=jbm-regular-${size}.pf2 <regular-ttf>  # 10/11/13/14
+grub-mkfont --size=${size} --output=jbm-bold-${size}.pf2    <bold-ttf>     # 14/28
 ```
 
-für jede in `theme.txt` referenzierte Größe (10, 11, 13, 14) auf. Wenn
-`grub-mkfont` oder das TTF fehlen, wird gewarnt aber NICHT abgebrochen —
-GRUB nutzt dann weiter den Default-Font (gleicher Status wie vorher).
+Fehlt eine der beiden TTFs, wird gewarnt aber NICHT abgebrochen — GRUB
+nutzt dann weiter den Default-Font für die fehlende Variante.
 
 **Voraussetzung im Build-System:** `pacman -S grub ttf-jetbrains-mono-nerd`.
 In der CI ist beides Teil des `archlinux:latest` Container-Setups.
