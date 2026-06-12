@@ -14,10 +14,7 @@ use std::process::Command;
 use std::fs;
 
 fn main() {
-    let level = env::args()
-        .find(|a| a.starts_with("--level="))
-        .and_then(|a| a.strip_prefix("--level=").map(String::from))
-        .unwrap_or_else(|| "nuke".to_string());
+    let level = parse_level_arg(env::args().skip(1));
 
     eprintln!("[krypt-panic] TRIGGERED — level: {}", level);
 
@@ -159,4 +156,67 @@ fn wipe_sensitive_memory() {
 
     // Hinweis: ein vollständiger DRAM-Wipe (Cold-Boot-Schutz) braucht
     // kexec auf einen Wipe-Kernel — siehe docs/known-issues.md, Phase 5.
+}
+
+/// Liest den Wert von `--level=<x>` aus den CLI-Args, default „nuke".
+///
+/// Fail-secure: wenn niemand `--level=` mitgegeben hat, eskalieren wir
+/// implizit zu „nuke" (siehe main-Kommentar). Wenn jemand etwas Falsches
+/// mitgegeben hat, gibt diese Funktion den Wert zurück und das Match in
+/// main loggt + escalates zum nuke.
+fn parse_level_arg<I: IntoIterator<Item = String>>(args: I) -> String {
+    args.into_iter()
+        .find(|a| a.starts_with("--level="))
+        .and_then(|a| a.strip_prefix("--level=").map(String::from))
+        .unwrap_or_else(|| "nuke".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_level_arg;
+
+    fn args(parts: &[&str]) -> Vec<String> {
+        parts.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn default_is_nuke_when_no_args() {
+        assert_eq!(parse_level_arg(args(&[])), "nuke");
+    }
+
+    #[test]
+    fn default_is_nuke_when_other_args_only() {
+        assert_eq!(parse_level_arg(args(&["--verbose", "foo"])), "nuke");
+    }
+
+    #[test]
+    fn parses_lock() {
+        assert_eq!(parse_level_arg(args(&["--level=lock"])), "lock");
+    }
+
+    #[test]
+    fn parses_suspend_with_other_args_around() {
+        assert_eq!(
+            parse_level_arg(args(&["--verbose", "--level=suspend", "--debug"])),
+            "suspend"
+        );
+    }
+
+    #[test]
+    fn first_level_wins() {
+        // Erste --level=… Definition gewinnt — caller würde sonst
+        // beliebig viele anhängen und panic-Level kippen können.
+        assert_eq!(
+            parse_level_arg(args(&["--level=lock", "--level=nuke"])),
+            "lock"
+        );
+    }
+
+    #[test]
+    fn empty_level_returned_verbatim() {
+        // '--level=' (ohne Wert) liefert leeren String zurück.
+        // Das Match in main() escalates dann ohne Warnung zu NUKE —
+        // genau das gewollte fail-secure-Verhalten.
+        assert_eq!(parse_level_arg(args(&["--level="])), "");
+    }
 }

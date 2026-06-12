@@ -183,3 +183,55 @@ fn trust_colored_frame(width: u32, height: u32, trust: &wayland::TrustLevel) -> 
     }
     buf
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{trust_colored_frame, wayland::TrustLevel};
+
+    #[test]
+    fn produces_4_bytes_per_pixel() {
+        let buf = trust_colored_frame(4, 3, &TrustLevel::Green);
+        assert_eq!(buf.len(), 4 * 3 * 4);
+    }
+
+    #[test]
+    fn bgra_layout_for_mocha_red() {
+        // MOCHA_RED = #f38ba8 → in BGRA LE: B=0xa8, G=0x8b, R=0xf3, A=0xff
+        let buf = trust_colored_frame(1, 1, &TrustLevel::Red);
+        assert_eq!(buf, vec![0xa8, 0x8b, 0xf3, 0xff]);
+    }
+
+    #[test]
+    fn bgra_layout_for_mocha_peach() {
+        // MOCHA_PEACH = #fab387 → B=0x87, G=0xb3, R=0xfa, A=0xff
+        // Regressionsschutz: hier hatte trust_colored_frame über lange Zeit
+        // versehentlich #febd96 zurückgegeben (anderer Orange-Ton als der
+        // Border-Farbe von Hyprland). Drift war optisch sichtbar, aber im
+        // Code unschuldig.
+        let buf = trust_colored_frame(1, 1, &TrustLevel::Orange);
+        assert_eq!(buf, vec![0x87, 0xb3, 0xfa, 0xff]);
+    }
+
+    #[test]
+    fn oversized_returns_empty() {
+        // width * height * 4 > 256 MiB → leerer Buffer (statt OOM)
+        let buf = trust_colored_frame(20_000, 20_000, &TrustLevel::Green);
+        assert!(buf.is_empty());
+    }
+
+    #[test]
+    fn overflow_returns_empty() {
+        // checked_mul Overflow → leerer Buffer (statt Panic)
+        let buf = trust_colored_frame(u32::MAX, u32::MAX, &TrustLevel::Black);
+        assert!(buf.is_empty());
+    }
+
+    #[test]
+    fn black_is_crust_not_pure_black() {
+        // Vault-Farbe MOCHA_CRUST = #11111b — NICHT #000000. Es kam in
+        // einem CSS-Refactor mal vor dass jemand #000000 hineingeschrieben
+        // hätte; dieser Test fixiert die Catppuccin-Crust-Wahl im Code.
+        let buf = trust_colored_frame(1, 1, &TrustLevel::Black);
+        assert_eq!(buf, vec![0x1b, 0x11, 0x11, 0xff]);
+    }
+}
