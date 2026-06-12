@@ -31,10 +31,11 @@ cargo test
 |---|---|
 | `cargo build --release` sauber | ⬜ |
 | `cargo clippy -- -D warnings` sauber | ⬜ |
-| `cargo test` alle grün (34+ Tests) | ⬜ |
+| `cargo test` alle grün (≥57 Tests: 33 daemon + 12 stick + 6 gui + 6 panic) | ⬜ |
 | Binary `krypt-daemon` existiert in `target/release/` | ⬜ |
 | Binary `krypt-stick` existiert in `target/release/` | ⬜ |
 | Binary `krypt-gui` existiert in `target/release/` | ⬜ |
+| Binary `krypt-panic` existiert in `target/release/` | ⬜ |
 
 ### 1.2 Installer-Syntax
 
@@ -59,16 +60,26 @@ python3 -m py_compile installer/steps/vms.py
 
 ```bash
 bash -n build/build.sh
+bash -n build/test-qemu.sh
+bash -n build/make-test-stick.sh
 bash -n dotfiles/install.sh
+bash -n dotfiles/branding/krypt-screensaver
+bash -n dotfiles/branding/krypt-launch-screensaver
+bash -n dotfiles/rofi/krypt-launcher.sh
 bash -n initramfs/hooks/krypt
 bash -n initramfs/install/krypt
 bash -n initramfs/krypt-boot-agent.sh
 # Erwartung: kein Output
+
+# Oder alle auf einmal (matches CI):
+find . -type f \( -name "*.sh" -o ! -name "*.*" \) -not -path "*/target/*" -not -path "*/.git/*" -print0 \
+  | xargs -0 awk 'FNR==1 && /^#!.*\b(ba)?sh\b/ { print FILENAME }' \
+  | xargs -I {} bash -n {}
 ```
 
 | Test | Status |
 |---|---|
-| Alle .sh-Dateien syntaktisch korrekt | ⬜ |
+| Alle Shell-Scripts syntaktisch korrekt (.sh + shebang-only Wrapper) | ⬜ |
 
 ---
 
