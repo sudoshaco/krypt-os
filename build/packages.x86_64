@@ -129,6 +129,10 @@ pipewire
 pipewire-pulse
 pipewire-alsa
 wireplumber
+# pavucontrol: waybar pulseaudio-Modul (config.jsonc) hat
+# "on-click": "pavucontrol" — ohne dieses Paket bringt der Klick auf
+# das Lautstärke-Icon nichts (silent ENOENT).
+pavucontrol
 
 # ── Text-Editor (dom0 Notfall-Zugang) ────────────────────────────────────────
 neovim

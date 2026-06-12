@@ -194,6 +194,9 @@ class InstallScreen(Screen):
                  "foot", "rofi-wayland", "dunst",
                  "ttf-jetbrains-mono-nerd",
                  "pipewire", "pipewire-pulse", "wireplumber",
+                 # pavucontrol: waybar pulseaudio on-click ruft das Tool —
+                 # ohne es bringt der Klick auf das Lautstärke-Icon nichts.
+                 "pavucontrol",
                  # jq für KRYPT-Screensaver-Scripts (hyprctl -j Parsing).
                  # Ohne jq exit-en krypt-launch-screensaver mit notify-send,
                  # SUPER+SHIFT+S würde im Live-System ohne Wirkung sein.
