@@ -163,7 +163,7 @@ Kein Stick   →  Kein Boot.
 - Normaler USB-Stick — sieht aus wie jeder andere
 - 64-Byte-Zufallsschlüssel in LUKS2-Keyslot 1
 - Konfigurierbare Panic-Level (Lock / Suspend / Nuke)
-- Backup-Sticks via `krypt-stick backup add /dev/sdX`
+- Backup-Sticks via `krypt-stick --luks-dev /dev/sda2 add-backup --stick-dev /dev/sdX`
 - **Verlorener Stick ohne Backup: keine Wiederherstellung möglich**
 
 → Details: [docs/usb-kill-switch.md](docs/usb-kill-switch.md)
