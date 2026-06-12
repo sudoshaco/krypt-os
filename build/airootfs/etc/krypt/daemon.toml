@@ -16,7 +16,8 @@ log_level   = "info"
 # panic_level: lock | suspend | nuke
 # lock    → loginctl lock-sessions (Bildschirm sperren)
 # suspend → systemctl suspend (RAM erhalten, schnellster Shutdown)
-# nuke    → systemctl poweroff (sofort aus)
+# nuke    → krypt-panic: kill AppVMs → drop_caches + swapoff -a +
+#          libc::sync → systemctl poweroff --force --force
 panic_level = "suspend"
 
 # ── Auth-Sticks ──────────────────────────────────────────────────────────────

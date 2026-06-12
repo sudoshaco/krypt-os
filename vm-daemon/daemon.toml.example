@@ -17,8 +17,10 @@ log_level = "info"
 
 # Reaktion wenn der Auth-Stick abgezogen wird:
 #   lock    — loginctl lock-sessions    (Desktop sperren, sanfteste Option)
-#   suspend — systemctl suspend         (RAM-Inhalt bleibt erhalten)
-#   nuke    — systemctl poweroff --force --force  (sofortiger Strom-Aus, keine Sync)
+#   suspend — systemctl suspend         (RAM-Inhalt bleibt erhalten, danach xl pause)
+#   nuke    — krypt-panic --level=nuke  (alle AppVMs killen → drop_caches +
+#             swapoff -a + libc::sync → systemctl poweroff --force).
+#             Echter Cold-Boot-Wipe via kexec ist Phase 5.
 panic_level = "suspend"
 
 # ---------------------------------------------------------------------------
