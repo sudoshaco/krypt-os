@@ -197,6 +197,10 @@ class InstallScreen(Screen):
                  # pavucontrol: waybar pulseaudio on-click ruft das Tool —
                  # ohne es bringt der Klick auf das Lautstärke-Icon nichts.
                  "pavucontrol",
+                 # Media/Brightness/Screenshot — Hyprland-Binds in
+                 # dotfiles/hyprland/hyprland.conf rufen diese Tools.
+                 # Ohne sie tun XF86AudioPlay/MonBrightness/PrintScreen nichts.
+                 "playerctl", "brightnessctl", "grim", "slurp", "wl-clipboard",
                  # jq für KRYPT-Screensaver-Scripts (hyprctl -j Parsing).
                  # Ohne jq exit-en krypt-launch-screensaver mit notify-send,
                  # SUPER+SHIFT+S würde im Live-System ohne Wirkung sein.

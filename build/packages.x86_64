@@ -133,6 +133,16 @@ wireplumber
 # "on-click": "pavucontrol" — ohne dieses Paket bringt der Klick auf
 # das Lautstärke-Icon nichts (silent ENOENT).
 pavucontrol
+# playerctl für XF86AudioPlay/Pause/Next/Prev Hyprland-Binds (mpris)
+playerctl
+
+# ── Desktop-Tools (Brightness, Screenshot) ───────────────────────────────────
+# brightnessctl: für XF86MonBrightnessUp/Down Binds (Hyprland)
+brightnessctl
+# grim+slurp+wl-clipboard: Wayland-Screenshot mit Region-Auswahl + Clipboard
+grim
+slurp
+wl-clipboard
 
 # ── Text-Editor (dom0 Notfall-Zugang) ────────────────────────────────────────
 neovim
