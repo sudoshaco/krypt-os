@@ -186,8 +186,24 @@ jobs:
 
       - name: ShellCheck
         run: |
-          find . -name "*.sh" -not -path "*/target/*" -print0 \
-            | xargs -0 shellcheck --severity=error || true
-          # bash -n für alle Shell-Scripts
-          find . -name "*.sh" -not -path "*/target/*" -print0 \
-            | xargs -0 bash -n && echo "Syntax: OK"
+          # Sammelt *.sh + Skripte ohne Endung, die ein bash/sh-Shebang
+          # haben (dotfiles/branding/krypt-screensaver,
+          # initramfs/install/krypt, initramfs/hooks/krypt). Vorher hat
+          # die Pipeline nur *.sh erfasst → die Branding- und initramfs-
+          # Scripts waren CI-unsichtbar und konnten unbemerkt Syntax-
+          # Fehler enthalten.
+          mapfile -t SCRIPTS < <(
+            {
+              find . -type f -name "*.sh" -not -path "*/target/*" -not -path "*/.git/*"
+              find . -type f -not -name "*.sh" -not -path "*/target/*" -not -path "*/.git/*" -print0 \
+                | xargs -0 awk 'FNR==1 && /^#!.*\b(ba)?sh\b/ { print FILENAME }'
+            } | sort -u
+          )
+          printf '  → %s\n' "${SCRIPTS[@]}"
+          # Severity=error: nur echte Fehler killen die CI; Style-Hinweise
+          # bleiben informativ ohne Build zu blocken (bewusste Entscheidung,
+          # damit der Build-Gate nicht an SC2086-Quoting-Style hängt).
+          shellcheck --severity=error "${SCRIPTS[@]}"
+          # bash -n als zusätzlicher Syntax-Gate
+          for f in "${SCRIPTS[@]}"; do bash -n "$f"; done
+          echo "Syntax: OK (${#SCRIPTS[@]} scripts geprüft)"
