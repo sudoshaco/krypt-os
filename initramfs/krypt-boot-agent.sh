@@ -91,7 +91,16 @@ find_boot_stick_serial() {
 main() {
     log "starting (LUKS name: $LUKS_NAME)"
 
-    wait_for_socket
+    # wait_for_socket: aktuell warten wir bis krypt-daemon den IPC-Socket
+    # gebunden hat. Bis Phase 7+ ist die Antwort nicht load-bearing — das
+    # Stick-Matching läuft über daemon.toml-Serials, nicht via Live-IPC —
+    # aber das Warten gibt dem Daemon Zeit hochzufahren bevor der Boot
+    # Agent weitere Service-Files anstößt. Vorher wurde der Return-Wert
+    # ignoriert, sodass ein Timeout im Journal verschluckt wurde.
+    if ! wait_for_socket; then
+        log "WARN: krypt-daemon-Socket nicht bereit — Boot-Agent läuft weiter"
+        log "      (kein Fehler bis Phase 7+ — Stick-Matching via daemon.toml)"
+    fi
 
     local stick_serial
     stick_serial=$(find_boot_stick_serial)
