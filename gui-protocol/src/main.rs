@@ -151,7 +151,7 @@ fn trust_colored_frame(width: u32, height: u32, trust: &wayland::TrustLevel) -> 
     // Catppuccin Mocha Farben (RGB)
     let (r, g, b): (u8, u8, u8) = match trust {
         wayland::TrustLevel::Red    => (0xf3, 0x8b, 0xa8),  // MOCHA_RED   #f38ba8
-        wayland::TrustLevel::Orange => (0xfe, 0xbd, 0x96),  // MOCHA_PEACH #febd96
+        wayland::TrustLevel::Orange => (0xfa, 0xb3, 0x87),  // MOCHA_PEACH #fab387
         wayland::TrustLevel::Yellow => (0xf9, 0xe2, 0xaf),  // MOCHA_YELLOW
         wayland::TrustLevel::Green  => (0xa6, 0xe3, 0xa1),  // MOCHA_GREEN
         wayland::TrustLevel::Black  => (0x11, 0x11, 0x1b),  // CRUST
