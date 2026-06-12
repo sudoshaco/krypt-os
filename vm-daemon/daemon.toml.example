@@ -60,16 +60,16 @@ luks_slot = 1
 name        = "sys-gui"
 memory_mb   = 2048
 vcpus       = 2
-kernel      = "/boot/vmlinuz-lts"
+kernel      = "/boot/vmlinuz-linux-lts"
 trust_level = "green"
-# ramdisk   = "/boot/initramfs-lts.img"   # optional
+# ramdisk   = "/boot/initramfs-linux-lts.img"   # optional
 # root_disk = "/dev/vg0/sys-gui"           # optional
 
 [[vms]]
 name        = "work"
 memory_mb   = 4096
 vcpus       = 4
-kernel      = "/boot/vmlinuz-lts"
+kernel      = "/boot/vmlinuz-linux-lts"
 trust_level = "green"
 root_disk   = "/dev/vg0/work"
 
@@ -77,7 +77,7 @@ root_disk   = "/dev/vg0/work"
 name        = "browser"
 memory_mb   = 2048
 vcpus       = 2
-kernel      = "/boot/vmlinuz-lts"
+kernel      = "/boot/vmlinuz-linux-lts"
 trust_level = "red"
 root_disk   = "/dev/vg0/browser"
 
@@ -85,7 +85,7 @@ root_disk   = "/dev/vg0/browser"
 name        = "vault"
 memory_mb   = 512
 vcpus       = 1
-kernel      = "/boot/vmlinuz-lts"
+kernel      = "/boot/vmlinuz-linux-lts"
 trust_level = "black"
 root_disk   = "/dev/vg0/vault"
 
@@ -93,7 +93,7 @@ root_disk   = "/dev/vg0/vault"
 name        = "hacking"
 memory_mb   = 4096
 vcpus       = 4
-kernel      = "/boot/vmlinuz-lts"
+kernel      = "/boot/vmlinuz-linux-lts"
 trust_level = "orange"
 root_disk   = "/dev/vg0/hacking"
 
@@ -101,7 +101,7 @@ root_disk   = "/dev/vg0/hacking"
 name        = "personal"
 memory_mb   = 2048
 vcpus       = 2
-kernel      = "/boot/vmlinuz-lts"
+kernel      = "/boot/vmlinuz-linux-lts"
 trust_level = "green"
 root_disk   = "/dev/vg0/personal"
 
