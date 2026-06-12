@@ -141,6 +141,11 @@ wget
 curl
 man-db
 bash-completion
+# jq: wird vom KRYPT-Screensaver (dotfiles/branding/krypt-{screensaver,
+# launch-screensaver}) gebraucht, um `hyprctl -j`-Output zu parsen
+# (Fokus-Erkennung + Monitor-Liste). Auch von rofi-Launcher Hilfsskripten
+# nutzbar — generell zu klein um es nachzuinstallieren zu lassen.
+jq
 # udev ist in systemd/base
 # util-linux ist in base (enthält partprobe, lsblk, blkid etc.)
 

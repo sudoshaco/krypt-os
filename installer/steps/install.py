@@ -190,9 +190,14 @@ class InstallScreen(Screen):
             # auf installed system nicht (hyprctl dispatch exec hyprlock → ENOENT).
             run(["arch-chroot", "/mnt", "pacman", "-S", "--noconfirm",
                  "grub", "efibootmgr",
-                 "hyprland", "hyprlock", "waybar", "foot", "rofi-wayland", "dunst",
+                 "hyprland", "hyprlock", "hypridle", "waybar",
+                 "foot", "rofi-wayland", "dunst",
                  "ttf-jetbrains-mono-nerd",
                  "pipewire", "pipewire-pulse", "wireplumber",
+                 # jq für KRYPT-Screensaver-Scripts (hyprctl -j Parsing).
+                 # Ohne jq exit-en krypt-launch-screensaver mit notify-send,
+                 # SUPER+SHIFT+S würde im Live-System ohne Wirkung sein.
+                 "jq",
                  "python-textual", "python-rich", "python-psutil"])
 
             # ── 6b. Krypt-Repo + Xen ──────────────────────────────────────────
