@@ -342,9 +342,20 @@ mkdir -p "${SKEL}/.config"
 # Neovim
 [[ -d "${REPO_ROOT}/dotfiles/neovim" ]] && \
     cp -rT "${REPO_ROOT}/dotfiles/neovim" "${SKEL}/.config/nvim"
-# Hyprland
+# Hyprland (hyprland.conf, animations.conf)
 [[ -d "${REPO_ROOT}/dotfiles/hyprland" ]] && \
     cp -rT "${REPO_ROOT}/dotfiles/hyprland" "${SKEL}/.config/hypr"
+# Hyprlock-Conf landet im selben ~/.config/hypr/ Verzeichnis
+if [[ -f "${REPO_ROOT}/dotfiles/hyprlock/hyprlock.conf" ]]; then
+    install -Dm644 "${REPO_ROOT}/dotfiles/hyprlock/hyprlock.conf" \
+        "${SKEL}/.config/hypr/hyprlock.conf"
+fi
+# Hypridle-Conf — sonst startet hypridle via exec-once ohne Config
+# und das ganze Idle-Timing-Verhalten (Screensaver/Lock/DPMS) wirkt nicht.
+if [[ -f "${REPO_ROOT}/dotfiles/hypridle/hypridle.conf" ]]; then
+    install -Dm644 "${REPO_ROOT}/dotfiles/hypridle/hypridle.conf" \
+        "${SKEL}/.config/hypr/hypridle.conf"
+fi
 # Waybar
 if [[ -d "${REPO_ROOT}/dotfiles/waybar" ]]; then
     cp -rT "${REPO_ROOT}/dotfiles/waybar" "${SKEL}/.config/waybar"

@@ -106,6 +106,14 @@ do_link "${SCRIPT_DIR}/hyprland/animations.conf" "${HOME}/.config/hypr/animation
 info "Hyprlock"
 do_link "${SCRIPT_DIR}/hyprlock/hyprlock.conf"  "${HOME}/.config/hypr/hyprlock.conf"
 
+# ── Hypridle ────────────────────────────────────────────────────────────────
+# hypridle triggert Screensaver + Lock + DPMS-off. Ohne diese Conf wäre
+# das via packages.x86_64 installierte hypridle nicht konfiguriert und
+# würde mit der Default-Conf entweder gar nicht starten oder sofort
+# sperren — beides nicht das gewünschte Krypt-Verhalten.
+info "Hypridle"
+do_link "${SCRIPT_DIR}/hypridle/hypridle.conf"  "${HOME}/.config/hypr/hypridle.conf"
+
 # ── Waybar ──────────────────────────────────────────────────────────────────
 info "Waybar"
 do_link "${SCRIPT_DIR}/waybar/config.jsonc"     "${HOME}/.config/waybar/config.jsonc"
