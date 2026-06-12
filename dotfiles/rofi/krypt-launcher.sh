@@ -87,6 +87,17 @@ build_entries() {
 # ─────────────────────────────────────────────────────────────────────────────
 # Aktion ausführen
 # ─────────────────────────────────────────────────────────────────────────────
+trust_to_workspace() {
+    case "$1" in
+        red)    hyprctl dispatch workspace 1 ;;
+        yellow) hyprctl dispatch workspace 2 ;;
+        green)  hyprctl dispatch workspace 3 ;;
+        orange) hyprctl dispatch workspace 4 ;;
+        black)  hyprctl dispatch workspace 9 ;;
+        *)      hyprctl dispatch workspace 1 ;;
+    esac
+}
+
 handle_selection() {
     local info="$1"
     local name state trust
@@ -95,14 +106,7 @@ handle_selection() {
     case "$state" in
         Running)
             # Workspace wechseln je nach Trust-Level
-            case "$trust" in
-                red)    hyprctl dispatch workspace 1 ;;
-                yellow) hyprctl dispatch workspace 2 ;;
-                green)  hyprctl dispatch workspace 3 ;;
-                orange) hyprctl dispatch workspace 4 ;;
-                black)  hyprctl dispatch workspace 9 ;;
-                *)      hyprctl dispatch workspace 1 ;;
-            esac
+            trust_to_workspace "$trust"
             ;;
         Halted)
             # VM starten via IPC VmStartRequest (xl create dauert ~5–30s)
@@ -142,15 +146,15 @@ except Exception as e:
     print(f"krypt-launcher: IPC error: {e}", file=sys.stderr)
     sys.exit(1)
 EOF
-            # Nach erfolgreichem Start zum richtigen Workspace wechseln
-            case "$trust" in
-                red)    hyprctl dispatch workspace 1 ;;
-                yellow) hyprctl dispatch workspace 2 ;;
-                green)  hyprctl dispatch workspace 3 ;;
-                orange) hyprctl dispatch workspace 4 ;;
-                black)  hyprctl dispatch workspace 9 ;;
-                *)      hyprctl dispatch workspace 1 ;;
-            esac
+            # Nur wenn die VM tatsächlich gestartet wurde zum Workspace wechseln.
+            # Vorher: bei IPC-Fehler oder Daemon-Reject (resp.type == 'error')
+            # landete der User trotzdem auf dem Trust-Workspace und sah dort
+            # nichts, weil die VM gar nicht aufkam.
+            if [[ $? -eq 0 ]]; then
+                trust_to_workspace "$trust"
+            else
+                notify-send -u critical "Krypt" "VM '$name' konnte nicht gestartet werden"
+            fi
             ;;
         *)
             notify-send "Krypt" "VM $name is $state" --icon=dialog-warning
