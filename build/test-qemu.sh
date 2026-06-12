@@ -39,7 +39,15 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # ─── Konfiguration ────────────────────────────────────────────────────────────
 OVMF_CODE="/usr/share/edk2/x64/OVMF_CODE.4m.fd"
 OVMF_VARS_TEMPLATE="/usr/share/edk2/x64/OVMF_VARS.4m.fd"
-OVMF_VARS_COPY="/tmp/krypt-ovmf-vars.fd"
+# Pro Test-Run ein eigenes UEFI-VARS-File via mktemp. Vorher war der Pfad
+# fest auf /tmp/krypt-ovmf-vars.fd — parallele Test-Runs (z.B. zwei
+# Terminals) clobberten sich gegenseitig den UEFI-State und sahen
+# zufällige Boot-Reihenfolge bzw. Garbage-Variables.
+OVMF_VARS_COPY=""
+cleanup_ovmf_vars() {
+    [[ -n "${OVMF_VARS_COPY}" && -f "${OVMF_VARS_COPY}" ]] && rm -f "${OVMF_VARS_COPY}"
+}
+trap cleanup_ovmf_vars EXIT INT TERM
 
 DISK_IMG="${REPO_ROOT}/build/krypt-test-disk.qcow2"
 DISK_SIZE="40G"
@@ -88,6 +96,7 @@ if [[ -z "$ISO_FILE" && "$MODE" != "boot" ]]; then
 fi
 
 # ─── OVMF VARS kopieren (UEFI-State pro Test-Run) ─────────────────────────────
+OVMF_VARS_COPY="$(mktemp -t krypt-ovmf-vars.XXXXXX.fd)"
 cp -f "${OVMF_VARS_TEMPLATE}" "${OVMF_VARS_COPY}"
 ok "OVMF VARS: ${OVMF_VARS_COPY}"
 
