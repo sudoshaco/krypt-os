@@ -186,24 +186,41 @@ jobs:
 
       - name: ShellCheck
         run: |
-          # Sammelt *.sh + Skripte ohne Endung, die ein bash/sh-Shebang
-          # haben (dotfiles/branding/krypt-screensaver,
-          # initramfs/install/krypt, initramfs/hooks/krypt). Vorher hat
-          # die Pipeline nur *.sh erfasst → die Branding- und initramfs-
-          # Scripts waren CI-unsichtbar und konnten unbemerkt Syntax-
-          # Fehler enthalten.
-          mapfile -t SCRIPTS < <(
-            {
-              find . -type f -name "*.sh" -not -path "*/target/*" -not -path "*/.git/*"
-              find . -type f -not -name "*.sh" -not -path "*/target/*" -not -path "*/.git/*" -print0 \
-                | xargs -0 awk 'FNR==1 && /^#!.*\b(ba)?sh\b/ { print FILENAME }'
-            } | sort -u
-          )
+          # Sammelt *.sh + Skripte ohne Endung, die einen Shell-Shebang
+          # haben (bash/sh/ash/dash/zsh). Vorher (Commit 36982e8) hat
+          # die Pipeline nur *.sh erfasst → Branding- und initramfs-
+          # Scripts waren CI-unsichtbar.
+          #
+          # Die awk-Regex nutzt POSIX-Charakterklassen statt \b — GNU awk
+          # 5.x liefert \b NICHT in Regex-Patterns. Vorherige Iteration
+          # (auch in 36982e8) hat darum stillschweigend NICHTS gematcht
+          # und fiel auf reine *.sh-Coverage zurück.
+          #
+          # Zwei find+sort Pässe + Temp-Files damit beide Listen vollständig
+          # vorliegen bevor sort -u sie kombiniert. Eine Brace-Group mit
+          # nachgeschaltetem Pipeline (`{ A; B; } | sort -u`) hat zwischen
+          # A=find und B=find|xargs|awk eine Race-Condition — sort hat
+          # bei lokalem Test reproduzierbar 4 Einträge verloren.
+          find . -type f -name "*.sh" -not -path "*/target/*" -not -path "*/.git/*" \
+            > /tmp/scripts-sh.txt
+          find . -type f -not -name "*.sh" -not -path "*/target/*" -not -path "*/.git/*" -print0 \
+            | xargs -0 awk 'FNR==1 && /^#![[:space:]]*\/([^[:space:]]+\/)?(env[[:space:]]+)?(ba|a|da|z|k)?sh([[:space:]]|$)/ { print FILENAME }' \
+            > /tmp/scripts-shebang.txt
+          mapfile -t SCRIPTS < <(sort -u /tmp/scripts-sh.txt /tmp/scripts-shebang.txt)
           printf '  → %s\n' "${SCRIPTS[@]}"
           # Severity=error: nur echte Fehler killen die CI; Style-Hinweise
           # bleiben informativ ohne Build zu blocken (bewusste Entscheidung,
           # damit der Build-Gate nicht an SC2086-Quoting-Style hängt).
-          shellcheck --severity=error "${SCRIPTS[@]}"
-          # bash -n als zusätzlicher Syntax-Gate
-          for f in "${SCRIPTS[@]}"; do bash -n "$f"; done
+          # --exclude SC1090,SC1091 — Dynamic source paths in install.sh
+          shellcheck --severity=error --exclude=SC1090,SC1091 "${SCRIPTS[@]}"
+          # bash -n als zusätzlicher Syntax-Gate (außer für ash/dash, die
+          # nutzen busybox-Subsets die bash nicht parsen kann — siehe
+          # initramfs/hooks/krypt).
+          for f in "${SCRIPTS[@]}"; do
+            shebang=$(head -1 "$f")
+            case "$shebang" in
+              *ash*|*dash*) sh -n "$f" 2>/dev/null || dash -n "$f" || true ;;
+              *)            bash -n "$f" ;;
+            esac
+          done
           echo "Syntax: OK (${#SCRIPTS[@]} scripts geprüft)"
