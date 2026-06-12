@@ -344,6 +344,18 @@ class InstallScreen(Screen):
             phase("Initramfs generieren", 3)
             run(["arch-chroot", "/mnt", "mkinitcpio", "-P"])
 
+            # ── 11. Re-Launch-Schutz ──────────────────────────────────────────
+            # build/airootfs/root/.automated_script.sh prüft
+            # `[[ -e /etc/krypt/.installed ]]` und bricht ab wenn vorhanden.
+            # Ohne Marker hätte ein User der innerhalb derselben Live-Session
+            # auf tty2 wechselt und zurück auf tty1 kommt den Installer
+            # erneut gestartet bekommen → potentiell zweite Partitionierung
+            # auf der gerade fertig installierten Disk. Wir setzen jetzt den
+            # Marker auf der Live-Side, weil .automated_script.sh dort liest.
+            import os
+            os.makedirs("/etc/krypt", exist_ok=True)
+            _write_file("/etc/krypt/.installed", "krypt-installer run completed\n")
+
             # Abschluss
             self.app.call_from_thread(self._label.update, "Installation abgeschlossen ✓")
             self.app.call_from_thread(self._log.write_line, "")
