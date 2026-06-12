@@ -340,8 +340,12 @@ class InstallScreen(Screen):
             self.app.call_from_thread(self._label.update, "Installation abgeschlossen ✓")
             self.app.call_from_thread(self._log.write_line, "")
             self.app.call_from_thread(self._log.write_line, "✓ Installation erfolgreich abgeschlossen")
+            # Textual's Button hat keine .set()-Methode — über Jahre hat
+            # call_from_thread(button.set, disabled=False) hier still einen
+            # AttributeError im Worker-Thread ausgelöst und der "Weiter"-Button
+            # blieb nach erfolgreicher Installation deaktiviert.
             self.app.call_from_thread(
-                self.query_one("#btn-next", Button).set, disabled=False
+                setattr, self.query_one("#btn-next", Button), "disabled", False
             )
 
         except Exception as exc:

@@ -134,7 +134,7 @@ class UsbScreen(Screen):
                 self._error.update,
                 "krypt-stick Binary nicht verfügbar. Manuell einrichten.",
             )
-            self.app.call_from_thread(self._btn_next.set, disabled=False)
+            self.app.call_from_thread(setattr, self._btn_next, "disabled", False)
             return
 
         # Korrekte krypt-stick CLI: krypt-stick --luks-dev <dev> setup --stick-dev <stick> --force
@@ -159,7 +159,7 @@ class UsbScreen(Screen):
                 self.app.call_from_thread(
                     self._status.update, "✓ Auth-Stick erfolgreich eingerichtet"
                 )
-                self.app.call_from_thread(self._btn_next.set, disabled=False)
+                self.app.call_from_thread(setattr, self._btn_next, "disabled", False)
             else:
                 raise RuntimeError(
                     f"krypt-stick fehlgeschlagen (exit {result.returncode}) — "
@@ -170,9 +170,9 @@ class UsbScreen(Screen):
             self.app.call_from_thread(
                 self._error.update, "Timeout — cryptsetup brauchte > 120s"
             )
-            self.app.call_from_thread(self._btn_next.set, disabled=False)
+            self.app.call_from_thread(setattr, self._btn_next, "disabled", False)
 
         except Exception as exc:
             self.app.call_from_thread(self._error.update, f"✗ Fehler: {exc}")
             self.app.call_from_thread(self._log.write_line, f"✗ {exc}")
-            self.app.call_from_thread(self._btn_next.set, disabled=False)
+            self.app.call_from_thread(setattr, self._btn_next, "disabled", False)
