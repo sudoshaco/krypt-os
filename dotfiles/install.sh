@@ -131,6 +131,13 @@ info "Foot"
 do_link "${SCRIPT_DIR}/foot/foot.ini"           "${HOME}/.config/foot/foot.ini"
 do_link "${SCRIPT_DIR}/foot/screensaver.ini"    "${HOME}/.config/foot/screensaver.ini"
 
+# ── Dunst (Notifications) ───────────────────────────────────────────────────
+# dunst wird via exec-once in hyprland.conf gestartet und von rofi/krypt
+# launcher mit notify-send angesprochen. Ohne dunstrc nimmt dunst Default-
+# Styling (weiß auf grau), das mit dem restlichen Catppuccin Theme bricht.
+info "Dunst"
+do_link "${SCRIPT_DIR}/dunst/dunstrc"           "${HOME}/.config/dunst/dunstrc"
+
 # ── Krypt Theme ─────────────────────────────────────────────────────────────
 info "Theme"
 do_link "${SCRIPT_DIR}/theme/colors.conf"       "${HOME}/.config/krypt/colors.conf"

@@ -1,0 +1,104 @@
+# ~/.config/dunst/dunstrc — Krypt OS Notifications
+# dunst: https://dunst-project.org
+#
+# Theme: Catppuccin Mocha + Krypt-Violett (passt zu waybar/foot/hyprlock).
+# Layout: oben rechts, max 5 Stack-Einträge, 8s Anzeige (kritisch persistiert).
+#
+# Krypt-spezifisch:
+#   - Urgency low      → leise Hinweise (Stick eingesteckt, VM started)
+#   - Urgency normal   → User-Aktionen, info
+#   - Urgency critical → Auth-Stick abgezogen, Panic-Trigger (Border in RED)
+
+[global]
+    monitor = 0
+    follow  = mouse
+
+    width  = (300, 420)
+    height = (0, 200)
+    origin = top-right
+    offset = (14, 14)
+    scale  = 0
+    notification_limit = 5
+
+    # ── Look ────────────────────────────────────────────────────────────────
+    transparency       = 0
+    progress_bar       = true
+    progress_bar_height = 8
+    progress_bar_frame_width = 1
+    progress_bar_min_width   = 150
+    progress_bar_max_width   = 380
+    indicate_hidden    = yes
+    separator_height   = 1
+    padding            = 12
+    horizontal_padding = 14
+    text_icon_padding  = 0
+    frame_width        = 2
+    gap_size           = 6
+    separator_color    = frame
+    sort               = yes
+
+    font          = JetBrainsMono Nerd Font 11
+    line_height   = 0
+    markup        = full
+    format        = "<b>%s</b>\n%b"
+    alignment     = left
+    vertical_alignment = center
+    show_age_threshold = 60
+    ellipsize     = middle
+    ignore_newline = no
+    stack_duplicates = true
+    hide_duplicate_count = false
+    show_indicators  = yes
+
+    # ── Icons (Nerd Font Symbole im Body — kein extra icon_path nötig) ──────
+    enable_recursive_icon_lookup = true
+    icon_theme = "Adwaita"
+    icon_position = left
+    min_icon_size = 0
+    max_icon_size = 32
+
+    # ── Verhalten ───────────────────────────────────────────────────────────
+    sticky_history    = yes
+    history_length    = 30
+    dmenu             = /usr/bin/rofi -dmenu -p dunst
+    browser           = /usr/bin/xdg-open
+    always_run_script = true
+    title             = Dunst
+    class             = Dunst
+    corner_radius     = 10
+    ignore_dbusclose  = false
+    force_xwayland    = false
+    force_xinerama    = false
+
+    # Mouse-Aktionen
+    mouse_left_click   = close_current
+    mouse_middle_click = do_action, close_current
+    mouse_right_click  = close_all
+
+[experimental]
+    per_monitor_dpi = false
+
+# ─────────────────────────────────────────────────────────────────────────────
+# URGENCY-PROFILE
+# ─────────────────────────────────────────────────────────────────────────────
+
+[urgency_low]
+    background = "#1e1e2e"   # MOCHA_BASE
+    foreground = "#a6adc8"   # MOCHA_SUBTEXT0
+    frame_color = "#313244"  # MOCHA_SURFACE0
+    timeout   = 4
+    default_icon = dialog-information
+
+[urgency_normal]
+    background = "#1e1e2e"
+    foreground = "#cdd6f4"   # MOCHA_TEXT
+    frame_color = "#9d4edd"  # KRYPT_VIOLET
+    timeout   = 8
+    default_icon = dialog-information
+
+[urgency_critical]
+    background = "#1e1e2e"
+    foreground = "#f38ba8"   # MOCHA_RED
+    frame_color = "#f38ba8"
+    timeout   = 0            # persistiert bis Click
+    default_icon = dialog-error

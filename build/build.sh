@@ -369,6 +369,9 @@ fi
 # Foot
 [[ -d "${REPO_ROOT}/dotfiles/foot" ]] && \
     cp -rT "${REPO_ROOT}/dotfiles/foot" "${SKEL}/.config/foot"
+# Dunst (Notifications)
+[[ -d "${REPO_ROOT}/dotfiles/dunst" ]] && \
+    cp -rT "${REPO_ROOT}/dotfiles/dunst" "${SKEL}/.config/dunst"
 # Krypt-Theme
 [[ -d "${REPO_ROOT}/dotfiles/theme" ]] && {
     mkdir -p "${SKEL}/.config/krypt"
