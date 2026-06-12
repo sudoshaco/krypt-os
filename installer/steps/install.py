@@ -267,7 +267,11 @@ class InstallScreen(Screen):
             phase("System konfigurieren", 5)
 
             # Locale + Hostname
-            run(["bash", "-c", "echo 'en_US.UTF-8 UTF-8' >> /mnt/etc/locale.gen"])
+            # Vor dem Anhängen prüfen, ob die Zeile bereits in locale.gen
+            # existiert (Re-Install / Re-Run würde sonst Duplikate sammeln).
+            run(["bash", "-c",
+                 "grep -qxF 'en_US.UTF-8 UTF-8' /mnt/etc/locale.gen || "
+                 "echo 'en_US.UTF-8 UTF-8' >> /mnt/etc/locale.gen"])
             run(["arch-chroot", "/mnt", "locale-gen"])
             run(["bash", "-c", "echo 'LANG=en_US.UTF-8' > /mnt/etc/locale.conf"])
             run(["bash", "-c", "echo 'krypt-os' > /mnt/etc/hostname"])
