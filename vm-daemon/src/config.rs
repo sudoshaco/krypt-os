@@ -217,7 +217,20 @@ fn is_valid_serial(s: &str) -> bool {
 /// Lehnt eingebettete `"` und `\n` ab — würden sonst die xl-Config-Generation
 /// in vm::write_xl_cfg zerschießen. Empty Strings sind ok (kein VM-Pfad gesetzt).
 fn check_path(vm: &str, field: &'static str, value: &str) -> Result<(), ConfigError> {
-    if value.contains('"') || value.contains('\n') {
+    // Verbotene Zeichen:
+    //   "   — schließt den xl-Config-String (kernel = "...") frühzeitig
+    //   \n  — bricht das Multi-Line-Format und kann zusätzliche Felder injizieren
+    //   ,   — xl parsed Disk-Specs CSV-artig ("disk,format,vdev,access"). Ein
+    //         root_disk-Pfad mit ',' verschiebt die Felder und liefert eine
+    //         silent falsche Disk-Konfiguration (z. B. format=raw wird zum
+    //         vdev). Vorher hat check_path Kommas durchgewunken.
+    //   \\  — Backslash kann je nach xl-Parser-Version als Escape interpretiert
+    //         werden und die String-Grenzen verschieben.
+    if value.contains('"')
+        || value.contains('\n')
+        || value.contains(',')
+        || value.contains('\\')
+    {
         return Err(ConfigError::InvalidPath {
             vm: vm.to_owned(),
             field,
@@ -334,6 +347,39 @@ mod tests {
             Err(ConfigError::InvalidPath { vm: v, field, .. }) => {
                 assert_eq!(v, "work");
                 assert_eq!(field, "root_disk");
+            }
+            other => panic!("expected InvalidPath, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn validate_rejects_root_disk_with_comma() {
+        // xl parsed Disk-Specs CSV-artig — ein Komma im Pfad würde die Felder
+        // verschieben und stillschweigend zu einer falschen Disk-Konfiguration
+        // führen (format=raw wird zum vdev etc.).
+        let mut bad = vm("work");
+        bad.root_disk = Some("/dev/vg0/work,raw".into());
+        let cfg = KryptConfig { vms: vec![bad], ..Default::default() };
+        match cfg.validate() {
+            Err(ConfigError::InvalidPath { vm: v, field, .. }) => {
+                assert_eq!(v, "work");
+                assert_eq!(field, "root_disk");
+            }
+            other => panic!("expected InvalidPath, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn validate_rejects_kernel_with_backslash() {
+        // Je nach xl-Parser-Version kann ein Backslash als Escape gelesen
+        // werden und die String-Grenzen verschieben.
+        let mut bad = vm("work");
+        bad.kernel = "/boot/vmlinuz\\foo".into();
+        let cfg = KryptConfig { vms: vec![bad], ..Default::default() };
+        match cfg.validate() {
+            Err(ConfigError::InvalidPath { vm: v, field, .. }) => {
+                assert_eq!(v, "work");
+                assert_eq!(field, "kernel");
             }
             other => panic!("expected InvalidPath, got {:?}", other),
         }
