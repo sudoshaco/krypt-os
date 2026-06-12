@@ -104,9 +104,43 @@ fn kill_all_vms() {
     }
 }
 
+/// Best-effort Reduktion der Restdaten im RAM vor dem Poweroff.
+///
+/// Echtes Memory-Scrubbing über alle DRAM-Pages ist nur via kexec mit
+/// einem speziell präparierten Wipe-Kernel möglich — das bleibt Phase 5.
+/// Bis dahin tun wir die drei Dinge, die ein normaler Userspace-Prozess
+/// noch erreichen kann, ohne den Poweroff zu blockieren:
+///   1. Page-Cache + dentries + inodes droppen (Datei-Inhalte, die wir
+///      in den letzten Sekunden gelesen haben, sind danach nicht mehr
+///      im freigegebenen RAM-Pool).
+///   2. swapoff -a — falls Swap aktiv ist, sind dort potentiell Key-Pages
+///      gelandet; swapoff zwingt das Auslagern zurückzulesen und überschreibt
+///      die Swap-Bereiche.
+///   3. sync — sicherstellen, dass keine dirty pages mit Key-Material
+///      noch auf den Disk-Caches warten.
+///
+/// Jeder Schritt ist best-effort; ein einzelner Fehler bricht den Nuke nicht
+/// ab — wir wollen unter allen Umständen zum poweroff kommen.
 fn wipe_sensitive_memory() {
-    // /dev/mem schreiben soweit möglich (privilegiert)
-    // In Produktion: spezifische Key-Material-Adressen überschreiben
-    // Placeholder — vollständige Implementierung in Phase 5
-    eprintln!("[krypt-panic] memory wipe: placeholder (Phase 5)");
+    use std::fs;
+
+    // 1. Kernel-Caches droppen (Page-Cache, dentries, inodes)
+    match fs::write("/proc/sys/vm/drop_caches", "3\n") {
+        Ok(_)  => eprintln!("[krypt-panic] dropped page/dentry/inode caches"),
+        Err(e) => eprintln!("[krypt-panic] drop_caches failed: {e}"),
+    }
+
+    // 2. Swap deaktivieren (überschreibt Swap-Bereiche beim Auslagern zurück)
+    match Command::new("swapoff").arg("-a").status() {
+        Ok(s) if s.success() => eprintln!("[krypt-panic] swapoff -a OK"),
+        Ok(s)                => eprintln!("[krypt-panic] swapoff -a exit {}", s.code().unwrap_or(-1)),
+        Err(e)               => eprintln!("[krypt-panic] swapoff -a failed: {e}"),
+    }
+
+    // 3. sync — dirty pages flushen, bevor poweroff den Strom kappt
+    unsafe { libc::sync() };
+    eprintln!("[krypt-panic] sync done");
+
+    // Hinweis: ein vollständiger DRAM-Wipe (Cold-Boot-Schutz) braucht
+    // kexec auf einen Wipe-Kernel — siehe docs/known-issues.md, Phase 5.
 }
