@@ -250,28 +250,51 @@ if [[ -d "${GRUB_THEME_SRC}" ]]; then
     # probieren mehrere bekannte Pfade. Wenn keiner existiert ODER
     # grub-mkfont nicht installiert ist, wird nur gewarnt (kein die).
     if command -v grub-mkfont >/dev/null 2>&1; then
-        TTF_PATH=""
+        # Regular + Bold TTFs separat auflösen — theme.txt referenziert
+        # "JetBrainsMono Nerd Font Regular 14" UND "...Bold 14"/"Bold 28".
+        # Wenn wir nur Regular generieren, fällt GRUB für die Bold-Strings
+        # stillschweigend auf unicode.pf2 zurück und das Boot-Menü mischt
+        # Stile, mit denen das Layout (item_height = 38) nicht passt.
+        REGULAR_TTF=""
+        BOLD_TTF=""
         for candidate in \
             "/usr/share/fonts/TTF/JetBrainsMonoNerdFont-Regular.ttf" \
             "/usr/share/fonts/jetbrains-mono-nerd/JetBrainsMonoNerdFont-Regular.ttf" \
             "/usr/share/fonts/jetbrainsmono-nerd/JetBrainsMonoNerdFont-Regular.ttf" \
             "/usr/share/fonts/JetBrains-Mono/JetBrainsMonoNerdFont-Regular.ttf" \
         ; do
-            [[ -f "$candidate" ]] && { TTF_PATH="$candidate"; break; }
+            [[ -f "$candidate" ]] && { REGULAR_TTF="$candidate"; break; }
         done
-        if [[ -n "$TTF_PATH" ]]; then
-            # theme.txt nutzt Größen 10, 11, 13, 14 (Regular) + 14, 28 (Bold).
-            # PF2-Files heißen ${name}-${size}.pf2; GRUB matched per Name
-            # aus der TTF-Metadata + Größe in der theme.txt-Direktive.
+        for candidate in \
+            "/usr/share/fonts/TTF/JetBrainsMonoNerdFont-Bold.ttf" \
+            "/usr/share/fonts/jetbrains-mono-nerd/JetBrainsMonoNerdFont-Bold.ttf" \
+            "/usr/share/fonts/jetbrainsmono-nerd/JetBrainsMonoNerdFont-Bold.ttf" \
+            "/usr/share/fonts/JetBrains-Mono/JetBrainsMonoNerdFont-Bold.ttf" \
+        ; do
+            [[ -f "$candidate" ]] && { BOLD_TTF="$candidate"; break; }
+        done
+        if [[ -n "$REGULAR_TTF" ]]; then
+            # theme.txt nutzt Regular in 10/11/13/14pt
             for size in 10 11 13 14; do
                 grub-mkfont --size="${size}" \
-                    --output="${GRUB_THEME_DST}/jbm-${size}.pf2" \
-                    "$TTF_PATH" 2>/dev/null || warn "grub-mkfont size=${size} fehlgeschlagen"
+                    --output="${GRUB_THEME_DST}/jbm-regular-${size}.pf2" \
+                    "$REGULAR_TTF" 2>/dev/null || warn "grub-mkfont regular ${size}pt fehlgeschlagen"
             done
-            ok "PF2-Fonts generiert (10/11/13/14pt aus ${TTF_PATH})"
+            ok "Regular-PF2 generiert (10/11/13/14pt aus ${REGULAR_TTF})"
         else
-            warn "JetBrainsMono Nerd Font TTF nicht gefunden — GRUB-Theme fällt auf Default-Font zurück"
+            warn "JetBrainsMono Nerd Font Regular nicht gefunden — GRUB-Theme nutzt Default-Font"
             warn "  Installier: sudo pacman -S ttf-jetbrains-mono-nerd"
+        fi
+        if [[ -n "$BOLD_TTF" ]]; then
+            # theme.txt nutzt Bold in 14/28pt (selected_item_font + title)
+            for size in 14 28; do
+                grub-mkfont --size="${size}" \
+                    --output="${GRUB_THEME_DST}/jbm-bold-${size}.pf2" \
+                    "$BOLD_TTF" 2>/dev/null || warn "grub-mkfont bold ${size}pt fehlgeschlagen"
+            done
+            ok "Bold-PF2 generiert (14/28pt aus ${BOLD_TTF})"
+        else
+            warn "JetBrainsMono Nerd Font Bold nicht gefunden — Theme-Titel fällt auf Regular zurück"
         fi
     else
         warn "grub-mkfont nicht installiert — überspringe PF2-Font-Generation"
