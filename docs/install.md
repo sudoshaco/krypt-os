@@ -375,24 +375,33 @@ sudo xl console work  # Konsole öffnen
 
 ```bash
 # Pakete
-sudo pacman -S hyprland waybar foot rofi-wayland \
-               neovim ripgrep fd fzf git-delta lazygit \
+sudo pacman -S hyprland hyprlock hypridle waybar foot rofi-wayland dunst \
+               neovim ripgrep fd fzf git-delta lazygit jq pavucontrol \
                ttf-jetbrains-mono-nerd noto-fonts-emoji
 
-# Dotfiles installieren
+# Dotfiles installieren (als normaler User)
 cd ~/krypt-os
 ./dotfiles/install.sh
 
 # Bei Root für GRUB + Plymouth-Theme:
 sudo ./dotfiles/install.sh
+
+# KRYPT-Screensaver: `tte` ist nicht in den offiziellen Repos.
+# Variante A — Krypt-Pacman-Repo (siehe post-install.md §1)
+sudo pacman -S python-terminaltexteffects
+# Variante B — pip
+pip install --user terminaltexteffects
 ```
 
 Das Skript legt Symlinks an für:
-- `~/.config/hypr/`      ← Hyprland-Konfiguration
-- `~/.config/waybar/`    ← Statusbar
-- `~/.config/foot/`      ← Terminal
-- `~/.config/rofi/`      ← App-Launcher
-- `~/.config/nvim/`      ← Neovim (lazy.nvim, LSP, Catppuccin Mocha)
+- `~/.config/hypr/`             ← Hyprland, hyprlock, hypridle
+- `~/.config/waybar/`           ← Statusbar
+- `~/.config/foot/`             ← Terminal (Standard + Screensaver-Profil)
+- `~/.config/rofi/`             ← VM-Launcher
+- `~/.config/dunst/`            ← Notifications (Catppuccin Mocha + Krypt-Violett)
+- `~/.config/nvim/`             ← Neovim (lazy.nvim, LSP, Catppuccin Mocha)
+- `~/.config/krypt/branding/`   ← KRYPT-ASCII-Logo für Screensaver
+- `~/.local/bin/krypt-*-screensaver` ← Screensaver-Skripte (Keybind: SUPER+SHIFT+S)
 
 ### Neovim-Ersteinrichtung
 
