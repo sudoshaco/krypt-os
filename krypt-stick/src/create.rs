@@ -15,17 +15,19 @@
 //   dd if=/dev/<stick> bs=1 skip=512 count=64 | cryptsetup open --key-file=-
 //
 // SICHERHEIT:
-//   - Temp-Keyfile wird in /tmp/ mit 0600 erstellt und sofort nach luksAddKey gelöscht
+//   - Kein Temp-Keyfile mehr: das Key-Material wird via stdin an
+//     `cryptsetup luksAddKey - …` gereicht (siehe luks::add_key_from_bytes).
+//     Vorher landete der Key kurz unter /tmp/.krypt-setup-key (0600, aber
+//     auf tmpfs == RAM), und ein Crash zwischen write_all und remove_file
+//     hat ihn dort persistent zurückgelassen.
 //   - Der Key-Bereich (Bytes 512–575) bleibt ausschließlich auf dem Stick
 
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
-use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::io::AsRawFd;
 
 const KEY_OFFSET: u64 = 512;
 const KEY_LEN: usize = 64;
-const TMP_KEY: &str = "/tmp/.krypt-setup-key";
 
 pub fn run_setup(luks_dev: &str, stick_dev: &str, force: bool) -> crate::luks::Result<()> {
     // ── Voraussetzungen prüfen ─────────────────────────────────────────────
@@ -99,30 +101,10 @@ pub fn run_setup(luks_dev: &str, stick_dev: &str, force: bool) -> crate::luks::R
     }
     println!("Schlüssel auf {stick_dev} geschrieben (Offset {KEY_OFFSET}).");
 
-    // ── 3. Temp-Keyfile (0600) für cryptsetup ─────────────────────────────
-    {
-        let mut tmp = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .mode(0o600)
-            .open(TMP_KEY)
-            .map_err(|e| format!("Temp-Keyfile erstellen fehlgeschlagen: {e}"))?;
-        tmp.write_all(&key)?;
-        tmp.flush()?;
-    }
-
-    // ── 4. cryptsetup luksAddKey ───────────────────────────────────────────
+    // ── 3. cryptsetup luksAddKey via stdin ────────────────────────────────
     println!();
     println!("cryptsetup luksAddKey — bitte bestehende Passphrase eingeben:");
-    let slot_result = crate::luks::add_key_from_file(luks_dev, std::path::Path::new(TMP_KEY));
-
-    // Temp-Keyfile immer löschen, auch bei Fehler
-    if let Err(rm_err) = std::fs::remove_file(TMP_KEY) {
-        eprintln!("WARNUNG: Temp-Keyfile konnte nicht gelöscht werden ({TMP_KEY}): {rm_err}");
-    }
-
-    let slot = slot_result?;
+    let slot = crate::luks::add_key_from_bytes(luks_dev, &key)?;
 
     // ── 5. Serien-Nummer lesen (best-effort) ───────────────────────────────
     let serial = read_stick_serial(stick_dev)

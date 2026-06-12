@@ -6,7 +6,6 @@
 
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
-use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::io::AsRawFd;
 
 pub fn add(luks_dev: &str, stick_dev: &str) -> crate::luks::Result<()> {
@@ -34,21 +33,10 @@ pub fn add(luks_dev: &str, stick_dev: &str) -> crate::luks::Result<()> {
         }
     }
 
-    let tmp_path = "/tmp/.krypt-backup-key";
-    {
-        let mut tmp = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .mode(0o600)
-            .open(tmp_path)?;
-        tmp.write_all(&key)?;
-        tmp.flush()?;
-    }
-
-    let slot_result = crate::luks::add_key_from_file(luks_dev, std::path::Path::new(tmp_path));
-    let _ = std::fs::remove_file(tmp_path);
-    let slot = slot_result?;
+    // luksAddKey über stdin — kein Temp-Keyfile in /tmp mehr (vorher
+    // hinterließ ein Crash zwischen write_all und remove_file den Backup-Key
+    // unter /tmp/.krypt-backup-key liegen, root-only aber persistent).
+    let slot = crate::luks::add_key_from_bytes(luks_dev, &key)?;
 
     println!("\nBackup stick added — LUKS slot {slot}");
     println!("Add to /etc/krypt/daemon.toml:");

@@ -8,8 +8,8 @@
 //   Offset 512 –  575: 64-Byte LUKS-Key (von krypt-stick geschrieben)
 
 use std::collections::HashSet;
-use std::path::Path;
-use std::process::Command;
+use std::io::Write;
+use std::process::{Command, Stdio};
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -40,26 +40,44 @@ pub fn list_slots(luks_dev: &str) -> Result<()> {
     Ok(())
 }
 
-/// Fügt einen neuen 64-Byte-Key aus einer Datei zu einem freien Slot hinzu.
+/// Fügt einen neuen Key direkt aus einem Byte-Slice zu einem freien Slot hinzu.
 ///
-/// cryptsetup fragt interaktiv nach dem bestehenden Passwort (oder Key-File via
-/// `--key-file` wenn der Caller das Device bereits per Key entsperrt hat).
-/// Gibt die neu belegte Slot-Nummer zurück.
-pub fn add_key_from_file(luks_dev: &str, new_key_file: &Path) -> Result<u32> {
+/// Das Key-Material wird per stdin an `cryptsetup luksAddKey - …` gepiped.
+/// Vermeidet das vorher übliche `/tmp/.krypt-{setup,backup}-key`-Zwischenstadium:
+/// dort landete das 64-Byte-Schlüsselmaterial selbst kurz auf tmpfs (RAM) und
+/// musste explizit gelöscht werden — bei einem Crash zwischen `write_all`
+/// und `remove_file` blieb der Key in /tmp liegen (0600, aber persistent).
+/// Mit stdin-Piping verlässt der Key nie den Prozess-Adressraum.
+///
+/// Cryptsetup liest die bestehende Passphrase weiterhin von /dev/tty
+/// (`--keyfile-fd`/`--key-file` werden nur auf das NEUE Material angewandt),
+/// daher funktioniert der interaktive Prompt unverändert.
+pub fn add_key_from_bytes(luks_dev: &str, key: &[u8]) -> Result<u32> {
     let slot = next_free_slot(luks_dev)?;
     let slot_str = slot.to_string();
 
-    // cryptsetup luksAddKey --key-slot <n> <device> <new-keyfile>
-    // Bestehende Passphrase wird via Terminal abgefragt.
-    let status = Command::new("cryptsetup")
+    let mut child = Command::new("cryptsetup")
         .args([
             "luksAddKey",
             "--key-slot", &slot_str,
+            // --new-keyfile-size verhindert, dass cryptsetup über das Key-Ende
+            // hinaus auf stdin wartet (wir senden EOF, das genügt — der Flag
+            // ist defensiv, falls eine Cryptsetup-Version EOF nicht akzeptiert).
+            "--new-keyfile-size", &key.len().to_string(),
             luks_dev,
-            &new_key_file.to_string_lossy(),
+            "-",
         ])
-        .status()?;
+        .stdin(Stdio::piped())
+        .spawn()?;
 
+    {
+        let stdin = child.stdin.as_mut()
+            .ok_or("cryptsetup stdin nicht verfügbar")?;
+        stdin.write_all(key)?;
+        // stdin schliesst beim Drop → EOF wird gesendet.
+    }
+
+    let status = child.wait()?;
     if !status.success() {
         return Err(format!("cryptsetup luksAddKey failed (slot {slot})").into());
     }
