@@ -42,8 +42,24 @@ fn main() {
 }
 
 fn panic_lock() {
-    // Hyprland sperren
-    let _ = Command::new("hyprctl").args(["dispatch", "exec", "hyprlock"]).status();
+    // krypt-panic wird vom krypt-daemon (systemd-Service) gespawned und erbt
+    // dessen leeres Environment. `hyprctl dispatch exec hyprlock` braucht
+    // aber HYPRLAND_INSTANCE_SIGNATURE und WAYLAND_DISPLAY aus der User-
+    // Session — die fehlen hier. Daher: zuerst loginctl lock-sessions
+    // (system-weit, kein User-Env nötig, triggert hyprlock via session-bus),
+    // und nur als best-effort-Ergänzung noch hyprctl falls es doch klappt.
+    let loginctl_ok = Command::new("loginctl")
+        .arg("lock-sessions")
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false);
+
+    if !loginctl_ok {
+        eprintln!("[krypt-panic] WARN: loginctl lock-sessions failed — trying hyprctl fallback");
+        let _ = Command::new("hyprctl")
+            .args(["dispatch", "exec", "hyprlock"])
+            .status();
+    }
     eprintln!("[krypt-panic] LOCKED");
 }
 
